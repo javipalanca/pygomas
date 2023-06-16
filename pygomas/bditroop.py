@@ -3,7 +3,6 @@ import random
 from collections import deque
 
 import agentspeak as asp
-from agentspeak.stdlib import actions as asp_action
 from loguru import logger
 from numpy import arctan2, cos, sin
 from spade.behaviour import OneShotBehaviour, PeriodicBehaviour, CyclicBehaviour
@@ -574,7 +573,7 @@ class BDITroop(AbstractAgent, BDIAgent):
 
         super().add_custom_actions(actions)
 
-    def start(self, auto_register=True):
+    async def start(self, auto_register=True):
         self.health = MAX_HEALTH
         self.protection = 25
         self.stamina = MAX_STAMINA
@@ -612,8 +611,7 @@ class BDITroop(AbstractAgent, BDIAgent):
         # self.agent.Launch_BarsAddOn_InnerBehaviour()
         self.add_behaviour(self.RestoreBehaviour(period=1))
 
-        future = super().start(auto_register)
-        return future
+        await super().start(auto_register=auto_register)
 
     class CreateBasicTroopBehaviour(OneShotBehaviour):
         async def run(self):

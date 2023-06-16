@@ -44,20 +44,16 @@ class Server(object):
 
         self.loop = self.container.loop
 
-        self.coro = asyncio.start_server(
-            self.accept_client, "", self.port, loop=self.loop
-        )
-
     def get_connections(self):
         return self.clients.keys()
 
-    def start(self):
-        self.server = self.loop.create_task(self.coro)
+    async def start(self):
+        self.server = await asyncio.start_server(self.accept_client, "", self.port)
         logger.info("Render Server started: {}".format(self.server))
 
-    def stop(self):
-        self.server.stop()
-        self.loop.run_until_complete(self.server.wait_closed())
+    async def stop(self):
+        await self.server.stop()
+        await self.server.wait_closed()
 
     def accept_client(self, client_reader, client_writer):
         logger.info("New render connection")

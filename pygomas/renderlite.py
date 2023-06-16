@@ -22,7 +22,7 @@ from pygame.rect import Rect
 from pygomas.bditroop import CLASS_NONE, CLASS_SOLDIER, CLASS_MEDIC, CLASS_ENGINEER, CLASS_FIELDOPS
 from pygomas.config import TEAM_AXIS, TEAM_ALLIED, TEAM_NONE
 from pygomas.pack import PACK_MEDICPACK, PACK_AMMOPACK, PACK_OBJPACK
-from .server import (
+from pygomas.server import (
     MSG_TYPE,
     MSG_BODY,
     TCP_AGL,
