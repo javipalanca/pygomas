@@ -180,7 +180,7 @@ class Render(object):
 
             if len(data) == 0:
                 data = None
-            data = msgpack.unpackb(data, raw=False)
+            data = msgpack.unpackb(data, raw=False, strict_map_key=False)
             return data
         else:
             if len(self.game_log) > 0:

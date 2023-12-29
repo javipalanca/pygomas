@@ -5,8 +5,6 @@ import msgpack
 
 from loguru import logger
 
-from spade.container import Container
-
 TCP_COM = 0  # COMMUNICATION (ACCEPTED, CLOSED, REFUSED)
 TCP_AGL = 1  # AGENT LIST
 TCP_MAP = 2  # MAP: NAME, CHANGES, etc.
@@ -40,24 +38,18 @@ class Server(object):
         self.port = port
         self.server = None
 
-        self.container = Container()
-
-        self.loop = self.container.loop
-
-        self.coro = asyncio.start_server(
-            self.accept_client, "", self.port, loop=self.loop
-        )
+        self.coro = asyncio.start_server(self.accept_client, "", self.port)
 
     def get_connections(self):
         return self.clients.keys()
 
     def start(self):
-        self.server = self.loop.create_task(self.coro)
+        self.server = asyncio.create_task(self.coro)
         logger.info("Render Server started: {}".format(self.server))
 
     def stop(self):
         self.server.stop()
-        self.loop.run_until_complete(self.server.wait_closed())
+        asyncio.run(self.server.wait_closed())
 
     def accept_client(self, client_reader, client_writer):
         logger.info("New render connection")
@@ -110,7 +102,7 @@ class Server(object):
                 # exit loop and disconnect
                 return
 
-            data = msgpack.unpackb(data, raw=False)
+            data = msgpack.unpackb(data, raw=False, strict_map_key=False)
 
             logger.info("Client says:" + str(data))
             if data[MSG_TYPE] == TCP_COM:

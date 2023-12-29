@@ -14,11 +14,9 @@ import time
 from importlib import import_module
 
 from loguru import logger
-
 import click
 
-from spade import quit_spade
-from spade.container import Container
+import spade
 
 from . import renderlite
 from .config import TEAM_ALLIED, TEAM_AXIS
@@ -148,17 +146,17 @@ def cli():
     help="Show verbose debug level: -v level 1, -vv level 2, -vvv level 3, -vvvv level 4",
 )
 def manager(
-    jid,
-    password,
-    num_players,
-    map_name,
-    map_path,
-    service_jid,
-    service_password,
-    match_time,
-    fps,
-    port,
-    verbose,
+        jid,
+        password,
+        num_players,
+        map_name,
+        map_path,
+        service_jid,
+        service_password,
+        match_time,
+        fps,
+        port,
+        verbose,
 ):
     """Run the manager which controls the game."""
     click.echo("Running manager agent {}".format(jid))
@@ -177,18 +175,11 @@ def manager(
         fps=fps,
         port=port,
     )
-    future = manager_agent.start()
-    future.result()
 
-    while manager_agent.is_alive():
-        try:
-            time.sleep(0.1)
-        except KeyboardInterrupt:
-            break
-    click.echo("Stopping manager . . .")
-    manager_agent.stop().result()
+    async def main(agent):
+        await agent.start()
 
-    quit_spade()
+    spade.run(main(manager_agent))
 
     return 0
 
@@ -214,7 +205,7 @@ def manager(
     help="Show verbose debug level: -v level 1, -vv level 2, -vvv level 3, -vvvv level 4",
 )
 def run(game, map_path, verbose):
-    """Run a JSON game file with the players definition."""
+    """Run a JSON game file with the player's definition."""
 
     set_verbosity(verbose)
 
@@ -258,22 +249,7 @@ def run(game, map_path, verbose):
         )
         troops += new_troops
 
-    container = Container()
-    while not container.loop.is_running():
-        time.sleep(0.1)
-
-    futures = asyncio.run_coroutine_threadsafe(run_agents(troops), container.loop)
-    futures.result()
-
-    while any([agent.is_alive() for agent in troops]):
-        try:
-            time.sleep(1)
-        except KeyboardInterrupt:
-            break
-    click.echo("Stopping troops . . .")
-
-    quit_spade()
-
+    spade.run(run_agents(troops))
     return 0
 
 
@@ -401,7 +377,7 @@ def help(ctx, subcommand):
 
 async def run_agents(troops):
     coros = [agent.start(auto_register=True) for agent in troops]
-    return await asyncio.gather(*coros)
+    await asyncio.gather(*coros)
 
 
 def load_class(class_path):
