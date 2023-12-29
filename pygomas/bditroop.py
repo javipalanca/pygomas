@@ -563,6 +563,15 @@ class BDITroop(AbstractAgent, BDIAgent):
             self.movement.destination.z = self.movement.position.z
             yield
 
+        @actions.add_function(".delete", (int, tuple, ))
+        def _delete(index, tuple_):
+            if index == 0:
+                return tuple_[1:]
+            elif index == len(tuple_) - 1:
+                return tuple_[:index]
+            else:
+                return tuple_[0:index] + tuple_[index + 1:]
+
         super().add_custom_actions(actions)
 
     def start(self, auto_register=True):
