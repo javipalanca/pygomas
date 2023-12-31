@@ -2,17 +2,18 @@ import asyncio
 import json
 from datetime import datetime, timedelta
 
-from .ontology import ACTION, DESTROY, PERFORMATIVE, PERFORMATIVE_INFORM, NAME
-from .pack import Pack, PACK_MEDICPACK, PACK_AUTODESTROY_TIMEOUT
 from spade.behaviour import TimeoutBehaviour
 from spade.message import Message
+
+from pygomas.ontology import ACTION, DESTROY, PERFORMATIVE, PERFORMATIVE_INFORM, NAME
+from .pack import Pack, PACK_AMMOPACK, PACK_AUTODESTROY_TIMEOUT
 
 now = datetime.now
 
 
-class MedicPack(Pack):
+class AmmoPack(Pack):
     async def setup(self):
-        self.type = PACK_MEDICPACK
+        self.type = PACK_AMMOPACK
         timeout = now() + timedelta(seconds=PACK_AUTODESTROY_TIMEOUT)
         self.add_behaviour(self.AutoDestroyBehaviour(start_at=timeout))
         await super().setup()

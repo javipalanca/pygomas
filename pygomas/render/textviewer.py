@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: UTF8 -*-
 import argparse
+import copy
 import curses
+import os
 import socket
 import sys
-import os
-import copy
 
 stdscr = None
 allied_base = None

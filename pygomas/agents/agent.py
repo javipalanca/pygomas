@@ -2,12 +2,11 @@ import json
 from abc import ABCMeta
 
 from loguru import logger
-
 from spade.agent import Agent
 from spade.behaviour import OneShotBehaviour
 from spade.message import Message
 
-from .ontology import (
+from pygomas.ontology import (
     PERFORMATIVE,
     PERFORMATIVE_DEREGISTER_AGENT,
     PERFORMATIVE_DEREGISTER_SERVICE,

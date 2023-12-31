@@ -3,10 +3,10 @@ import random
 from loguru import logger
 from spade.behaviour import OneShotBehaviour
 
-from .config import POWER_UNIT
+from pygomas.config import POWER_UNIT
+from pygomas.ontology import MEDIC_SERVICE
+from pygomas.packs.medicpack import MedicPack
 from .bditroop import BDITroop, CLASS_MEDIC
-from .ontology import MEDIC_SERVICE
-from .medicpack import MedicPack
 
 
 class BDIMedic(BDITroop):

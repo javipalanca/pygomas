@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: UTF8 -*-
 import argparse
+import copy
+import math
+import os
 import socket
 import sys
-import os
 import traceback
-import copy
+
 import pygame
 from pygame import gfxdraw
-import math
 
 objective_x = -1
 objective_y = -1

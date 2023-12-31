@@ -1,5 +1,5 @@
+from pygomas.ontology import BACKUP_SERVICE
 from .bditroop import BDITroop, CLASS_SOLDIER
-from .ontology import BACKUP_SERVICE
 
 
 class BDISoldier(BDITroop):

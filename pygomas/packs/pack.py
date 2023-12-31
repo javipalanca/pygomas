@@ -1,7 +1,13 @@
 import json
-from loguru import logger
 
-from .ontology import (
+from loguru import logger
+from spade.agent import Agent
+from spade.behaviour import OneShotBehaviour, CyclicBehaviour
+from spade.message import Message
+from spade.template import Template
+
+from pygomas.agents.agent import AbstractAgent, LONG_RECEIVE_WAIT
+from pygomas.ontology import (
     ACTION,
     CREATE,
     TYPE,
@@ -14,12 +20,7 @@ from .ontology import (
     PERFORMATIVE_PACK_TAKEN,
     TEAM,
 )
-from .agent import AbstractAgent, LONG_RECEIVE_WAIT
-from .vector import Vector3D
-from spade.message import Message
-from spade.behaviour import OneShotBehaviour, CyclicBehaviour
-from spade.template import Template
-from spade.agent import Agent
+from pygomas.utils.vector import Vector3D
 
 PACK_NONE: int = 1000
 PACK_MEDICPACK: int = 1001

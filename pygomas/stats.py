@@ -1,6 +1,6 @@
 import datetime
 
-from .pack import PACK_MEDICPACK, PACK_AMMOPACK, PACK_OBJPACK
+from pygomas.packs.pack import PACK_MEDICPACK, PACK_AMMOPACK, PACK_OBJPACK
 from .config import TEAM_ALLIED, TEAM_AXIS
 
 

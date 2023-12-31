@@ -18,9 +18,14 @@ from spade.behaviour import (
 from spade.message import Message
 from spade.template import Template
 
+from pygomas.agents.agent import AbstractAgent, LONG_RECEIVE_WAIT
+from pygomas.agents.bditroop import CLASS_SOLDIER
+from pygomas.packs.objpack import ObjectivePack
+from pygomas.packs.pack import PACK_NAME, PACK_NONE, PACK_OBJPACK, PACK_MEDICPACK, PACK_AMMOPACK
+from pygomas.utils.mobile import Mobile
+from pygomas.utils.sight import Sight
+from pygomas.utils.vector import Vector3D
 from . import __version__
-from .agent import AbstractAgent, LONG_RECEIVE_WAIT
-from .bditroop import CLASS_SOLDIER
 from .config import (
     Config,
     MIN_HEALTH,
@@ -30,8 +35,6 @@ from .config import (
     MISSING_SHOT_PROBABILITY,
 )
 from .map import TerrainMap
-from .mobile import Mobile
-from .objpack import ObjectivePack
 from .ontology import (
     ACTION,
     AIM,
@@ -70,7 +73,6 @@ from .ontology import (
     PERFORMATIVE_PACK_TAKEN,
     TEAM,
 )
-from .pack import PACK_NAME, PACK_NONE, PACK_OBJPACK, PACK_MEDICPACK, PACK_AMMOPACK
 from .server import (
     Server,
     TCP_AGL,
@@ -89,9 +91,7 @@ from .server import (
     QUIT_MSG,
 )
 from .service import Service
-from .sight import Sight
 from .stats import GameStatistic
-from .vector import Vector3D
 
 MILLISECONDS_IN_A_SECOND: int = 1000
 

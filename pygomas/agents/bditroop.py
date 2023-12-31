@@ -10,8 +10,8 @@ from spade.message import Message
 from spade.template import Template
 from spade_bdi.bdi import BDIAgent
 
-from .agent import AbstractAgent, LONG_RECEIVE_WAIT
-from .config import (
+from pygomas.algorithms.jps import JPSAlgorithm
+from pygomas.config import (
     Config,
     MIN_POWER,
     MAX_POWER,
@@ -29,10 +29,8 @@ from .config import (
     PRECISION_Z,
     PRECISION_X,
 )
-from .jps import JPSAlgorithm
-from .map import TerrainMap
-from .mobile import Mobile
-from .ontology import (
+from pygomas.map import TerrainMap
+from pygomas.ontology import (
     AIM,
     ANGLE,
     DEC_HEALTH,
@@ -91,10 +89,12 @@ from .ontology import (
     THRESHOLD_SHOTS,
     VELOCITY,
 )
-from .pack import PACK_MEDICPACK, PACK_AMMOPACK, PACK_OBJPACK, PACK_NONE
-from .sight import Sight
-from .threshold import Threshold
-from .vector import Vector3D
+from pygomas.packs.pack import PACK_MEDICPACK, PACK_AMMOPACK, PACK_OBJPACK, PACK_NONE
+from pygomas.utils.mobile import Mobile
+from pygomas.utils.sight import Sight
+from pygomas.utils.threshold import Threshold
+from pygomas.utils.vector import Vector3D
+from .agent import AbstractAgent, LONG_RECEIVE_WAIT
 
 DEFAULT_RADIUS = 20
 ESCAPE_RADIUS = 50

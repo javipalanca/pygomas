@@ -1,12 +1,12 @@
 import json
 
 from loguru import logger
-
 from spade.agent import Agent
 from spade.behaviour import CyclicBehaviour
 from spade.template import Template
 
-from .agent import LONG_RECEIVE_WAIT
+from pygomas.agents.agent import LONG_RECEIVE_WAIT
+from .config import TEAM_NONE, TEAM_ALLIED, TEAM_AXIS
 from .ontology import (
     PERFORMATIVE,
     PERFORMATIVE_CFA,
@@ -22,7 +22,6 @@ from .ontology import (
     NAME,
     TEAM,
 )
-from .config import TEAM_NONE, TEAM_ALLIED, TEAM_AXIS
 
 
 class Service(Agent):

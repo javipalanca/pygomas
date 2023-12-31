@@ -2,7 +2,6 @@ import asyncio
 import struct
 
 import msgpack
-
 from loguru import logger
 
 TCP_COM = 0  # COMMUNICATION (ACCEPTED, CLOSED, REFUSED)

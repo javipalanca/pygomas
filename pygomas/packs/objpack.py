@@ -1,13 +1,13 @@
 import json
 
 from loguru import logger
-
-from .ontology import X, Y, Z, PERFORMATIVE, PERFORMATIVE_PACK_LOST, TEAM
-from .config import TEAM_AXIS
-from .pack import Pack, PACK_OBJPACK
-from .vector import Vector3D
 from spade.behaviour import CyclicBehaviour
 from spade.template import Template
+
+from pygomas.config import TEAM_AXIS
+from pygomas.ontology import X, Y, Z, PERFORMATIVE, PERFORMATIVE_PACK_LOST, TEAM
+from pygomas.utils.vector import Vector3D
+from .pack import Pack, PACK_OBJPACK
 
 
 class ObjectivePack(Pack):

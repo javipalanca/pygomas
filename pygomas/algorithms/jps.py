@@ -124,7 +124,6 @@ class JPSAlgorithm(object):
         return neighbours
 
     def jump(self, cx, cy, dx, dy, goal):
-
         nx = cx + dx
         ny = cy + dy
         if self.blocked(nx, ny, 0, 0):
@@ -218,7 +217,6 @@ class JPSAlgorithm(object):
         return successors
 
     def get_path(self, start, goal, hchoice=EUCLIDEAN):
-
         start = np.round(start)
         goal = np.round(goal)
         start = (int(start[0]), int(start[1]))
@@ -236,7 +234,6 @@ class JPSAlgorithm(object):
         heapq.heappush(pqueue, (fscore[start], start))
 
         while pqueue:
-
             current = heapq.heappop(pqueue)[1]
             if current == goal:
                 data = []

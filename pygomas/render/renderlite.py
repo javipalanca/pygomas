@@ -19,10 +19,10 @@ from loguru import logger
 from pygame import gfxdraw
 from pygame.rect import Rect
 
-from pygomas.bditroop import CLASS_NONE, CLASS_SOLDIER, CLASS_MEDIC, CLASS_ENGINEER, CLASS_FIELDOPS
+from pygomas.agents.bditroop import CLASS_NONE, CLASS_SOLDIER, CLASS_MEDIC, CLASS_ENGINEER, CLASS_FIELDOPS
 from pygomas.config import TEAM_AXIS, TEAM_ALLIED, TEAM_NONE
-from pygomas.pack import PACK_MEDICPACK, PACK_AMMOPACK, PACK_OBJPACK
-from .server import (
+from pygomas.packs.pack import PACK_MEDICPACK, PACK_AMMOPACK, PACK_OBJPACK
+from pygomas.server import (
     MSG_TYPE,
     MSG_BODY,
     TCP_AGL,
@@ -121,7 +121,8 @@ class Render(object):
         self.fps = list()
 
         this_dir, _ = os.path.split(__file__)
-        self.assets_path = f"{this_dir}{os.sep}assets{os.sep}"
+        parent_dir = os.path.abspath(os.path.join(this_dir, os.pardir))
+        self.assets_path = f"{parent_dir}{os.sep}assets{os.sep}"
         self.allied_base_sprite = pygame.image.load(
             os.path.join(self.assets_path, "base4.png")
         )
@@ -755,7 +756,8 @@ class Render(object):
                 path = f"{self.maps_path}{os.sep}{map_name}{os.sep}"
             else:
                 this_dir, _ = os.path.split(__file__)
-                path = f"{this_dir}{os.sep}maps{os.sep}{map_name}{os.sep}"
+                parent_dir = os.path.abspath(os.path.join(this_dir, os.pardir))
+                path = f"{parent_dir}{os.sep}maps{os.sep}{map_name}{os.sep}"
 
             if os.path.exists(f"{path}{map_name}.json"):
                 with open(f"{path}{map_name}.json") as f:
@@ -879,6 +881,7 @@ class MySprite(pygame.sprite.Sprite):
         super(MySprite, self).__init__()
         # adding all the images to sprite array
         this_dir, _ = os.path.split(__file__)
+        this_dir = os.path.abspath(os.path.join(this_dir, os.pardir))
 
         team = {TEAM_ALLIED: "allied", TEAM_AXIS: "axis", TEAM_NONE: ""}.get(team)
         self.images = [pygame.image.load(f'{this_dir}{os.sep}{folder}{os.sep}{name}_{team}{i}.png') for i in

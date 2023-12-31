@@ -10,7 +10,6 @@ os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "hide"
 import asyncio
 import json
 import sys
-import time
 from importlib import import_module
 
 from loguru import logger
@@ -18,11 +17,11 @@ import click
 
 import spade
 
-from . import renderlite
+from pygomas.render import renderlite
 from .config import TEAM_ALLIED, TEAM_AXIS
-from .bdifieldop import BDIFieldOp
-from .bdimedic import BDIMedic
-from .bdisoldier import BDISoldier
+from pygomas.agents.bdifieldop import BDIFieldOp
+from pygomas.agents.bdimedic import BDIMedic
+from pygomas.agents.bdisoldier import BDISoldier
 from .manager import Manager
 
 help_config = json.dumps(
@@ -146,17 +145,17 @@ def cli():
     help="Show verbose debug level: -v level 1, -vv level 2, -vvv level 3, -vvvv level 4",
 )
 def manager(
-        jid,
-        password,
-        num_players,
-        map_name,
-        map_path,
-        service_jid,
-        service_password,
-        match_time,
-        fps,
-        port,
-        verbose,
+    jid,
+    password,
+    num_players,
+    map_name,
+    map_path,
+    service_jid,
+    service_password,
+    match_time,
+    fps,
+    port,
+    verbose,
 ):
     """Run the manager which controls the game."""
     click.echo("Running manager agent {}".format(jid))
