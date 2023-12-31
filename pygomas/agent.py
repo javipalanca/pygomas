@@ -27,13 +27,12 @@ class AbstractAgent(object, metaclass=ABCMeta):
         self.service_jid = service_jid
         self.alive = True
 
-    def start(self, auto_register=True):
-        future = Agent.start(self, auto_register=auto_register)
+    async def start(self, auto_register=True):
+        await Agent.start(self, auto_register=auto_register)
         if self.services:
             for service in self.services:
                 logger.info("{} registering service {}".format(self.name, service))
                 self.register_service(service)
-        return future
 
     async def die(self):
         await self.deregister_agent()

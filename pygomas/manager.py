@@ -139,17 +139,17 @@ class DinObject:
 
 class Manager(AbstractAgent, Agent):
     def __init__(
-        self,
-        name="cmanager@localhost",
-        passwd="secret",
-        players=10,
-        fps=33,
-        match_time=380,
-        map_name="map_01",
-        map_path=None,
-        service_jid="cservice@localhost",
-        service_passwd="secret",
-        port=8001,
+            self,
+            name="cmanager@localhost",
+            passwd="secret",
+            players=10,
+            fps=33,
+            match_time=380,
+            map_name="map_01",
+            map_path=None,
+            service_jid="cservice@localhost",
+            service_passwd="secret",
+            port=8001,
     ):
 
         AbstractAgent.__init__(self, name, service_jid=service_jid)
@@ -172,27 +172,13 @@ class Manager(AbstractAgent, Agent):
         self.din_objects = dict()
         self.map = TerrainMap()
 
-    def _in_coroutine(self):
-        try:
-            return asyncio.get_event_loop() == self.loop
-        except RuntimeError:  # pragma: no cover
-            return False
-
-    def stop(self):
+    async def stop(self):
         del self.render_server
         self.render_server = None
-        if self._in_coroutine():
-            coro1 = self.objective_agent.stop()
-            coro2 = self.service_agent.stop()
-            coro3 = super().stop()
-            coro = asyncio.gather(coro1, coro2, coro3)
-
-        else:
-            self.objective_agent.stop().result()
-            self.service_agent.stop().result()
-            coro = super().stop()
-
-        return coro
+        coro1 = self.objective_agent.stop()
+        coro2 = self.service_agent.stop()
+        coro3 = super().stop()
+        await asyncio.gather(coro1, coro2, coro3)
 
     async def setup(self):
         class InitBehaviour(OneShotBehaviour):
@@ -250,12 +236,11 @@ class Manager(AbstractAgent, Agent):
         )
         logger.success("Powered by SPADE {}".format(spade.__version__))
 
-        coro = self.service_agent.start(auto_register=True)
-        await coro
+        await self.service_agent.start(auto_register=True)
 
         self.register_service(MANAGEMENT_SERVICE)
 
-        self.render_server.start()
+        await self.render_server.start()
 
         self.map.load_map(self.map_name, self.config)
 
@@ -282,10 +267,10 @@ class Manager(AbstractAgent, Agent):
         class InformRenderEngineBehaviour(PeriodicBehaviour):
             async def run(self):
                 if (
-                    self.agent.render_server
-                    and len(self.agent.render_server.get_connections()) != 0
-                    and all([[a.is_updated for a in self.agent.agents.values()]])
-                    and len(self.agent.agents) == self.agent.number_of_agents
+                        self.agent.render_server
+                        and len(self.agent.render_server.get_connections()) != 0
+                        and all([[a.is_updated for a in self.agent.agents.values()]])
+                        and len(self.agent.agents) == self.agent.number_of_agents
                 ):
 
                     msg = {
@@ -582,22 +567,22 @@ class Manager(AbstractAgent, Agent):
                 continue
             din_object = self.din_objects[key]
             if (
-                din_object.type == PACK_MEDICPACK
-                and self.agents[id_agent].health >= 100
+                    din_object.type == PACK_MEDICPACK
+                    and self.agents[id_agent].health >= 100
             ):
                 continue
             if din_object.type == PACK_AMMOPACK and self.agents[id_agent].ammo >= 100:
                 continue
             if (
-                din_object.type == PACK_OBJPACK
-                and din_object.is_taken
-                and din_object.owner != 0
+                    din_object.type == PACK_OBJPACK
+                    and din_object.is_taken
+                    and din_object.owner != 0
             ):
                 continue
 
             if (
-                xmin <= din_object.position.x <= xmax
-                and zmin <= din_object.position.z <= zmax
+                    xmin <= din_object.position.x <= xmax
+                    and zmin <= din_object.position.z <= zmax
             ):
                 # Agent has stepped on pack
                 id_ = din_object.jid
@@ -711,7 +696,7 @@ class Manager(AbstractAgent, Agent):
             if a.jid == id_agent:
                 continue
             if (
-                a.health <= MIN_HEALTH
+                    a.health <= MIN_HEALTH
             ):  # WARNING, we may be interested in seeing dead agents
                 continue
 
@@ -827,7 +812,7 @@ class Manager(AbstractAgent, Agent):
         return victim
 
     def _check_agents_in_row(
-        self, shooter_agent_id, shooter_agent, victim, min_distance
+            self, shooter_agent_id, shooter_agent, victim, min_distance
     ):
         for agent in self.agents.values():
             if agent.jid == shooter_agent_id:
@@ -911,14 +896,14 @@ class Manager(AbstractAgent, Agent):
                     point.z += step.z
 
                 if not self.map.can_walk(
-                    int(math.floor(point.x)), int(math.floor(point.z))
+                        int(math.floor(point.x)), int(math.floor(point.z))
                 ):
                     return error.length()
 
                 if point.x < 0 or point.y < 0 or point.z < 0:
                     break
                 if point.x >= (self.map.get_size_x()) or point.z >= (
-                    self.map.get_size_z()
+                        self.map.get_size_z()
                 ):
                     break
                 error.add(step)
@@ -940,12 +925,12 @@ class Manager(AbstractAgent, Agent):
             return False
 
         if (
-            self.map.allied_base.init.x
-            < self.agents[id_agent].locate.position.x
-            < self.map.allied_base.end.x
-            and self.map.allied_base.init.z
-            < self.agents[id_agent].locate.position.z
-            < self.map.allied_base.end.z
+                self.map.allied_base.init.x
+                < self.agents[id_agent].locate.position.x
+                < self.map.allied_base.end.x
+                and self.map.allied_base.init.z
+                < self.agents[id_agent].locate.position.z
+                < self.map.allied_base.end.z
         ):
             return True
         return False

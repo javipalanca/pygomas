@@ -38,18 +38,16 @@ class Server(object):
         self.port = port
         self.server = None
 
-        self.coro = asyncio.start_server(self.accept_client, "", self.port)
-
     def get_connections(self):
         return self.clients.keys()
 
-    def start(self):
-        self.server = asyncio.create_task(self.coro)
+    async def start(self):
+        self.server = await asyncio.start_server(self.accept_client, "", self.port)
         logger.info("Render Server started: {}".format(self.server))
 
-    def stop(self):
-        self.server.stop()
-        asyncio.run(self.server.wait_closed())
+    async def stop(self):
+        await self.server.stop()
+        await self.server.wait_closed()
 
     def accept_client(self, client_reader, client_writer):
         logger.info("New render connection")
