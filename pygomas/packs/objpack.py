@@ -5,7 +5,7 @@ from spade.behaviour import CyclicBehaviour
 from spade.template import Template
 
 from pygomas.config import TEAM_AXIS
-from pygomas.ontology import X, Y, Z, PERFORMATIVE, PERFORMATIVE_PACK_LOST, TEAM
+from pygomas.ontology import Action, Performative, Belief
 from pygomas.utils.vector import Vector3D
 from .pack import Pack, PACK_OBJPACK
 
@@ -25,7 +25,7 @@ class ObjectivePack(Pack):
         self.origin.y = self.position.y
         self.origin.z = self.position.z
         t = Template()
-        t.set_metadata(PERFORMATIVE, PERFORMATIVE_PACK_LOST)
+        t.set_metadata(str(Performative.PERFORMATIVE), str(Performative.PACK_LOST))
         self.add_behaviour(self.PackLostResponderBehaviour(), t)
 
         await super().setup()
@@ -33,7 +33,7 @@ class ObjectivePack(Pack):
     async def perform_pack_taken(self, content):
         logger.info("[{}]: Objective Taken!!".format(self.name))
         content = json.loads(content)
-        team = content[TEAM]
+        team = content[Belief.TEAM]
 
         if team == TEAM_AXIS:
             self.is_taken = False
@@ -49,6 +49,6 @@ class ObjectivePack(Pack):
             if msg:
                 self.agent.is_taken = False
                 content = json.loads(msg.body)
-                self.agent.position.x = float(content[X])
-                self.agent.position.y = float(content[Y])
-                self.agent.position.z = float(content[Z])
+                self.agent.position.x = float(content[Action.X])
+                self.agent.position.y = float(content[Action.Y])
+                self.agent.position.z = float(content[Action.Z])

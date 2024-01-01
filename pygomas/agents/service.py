@@ -6,32 +6,18 @@ from spade.behaviour import CyclicBehaviour
 from spade.template import Template
 
 from pygomas.agents.agent import LONG_RECEIVE_WAIT
-from .config import TEAM_NONE, TEAM_ALLIED, TEAM_AXIS
-from .ontology import (
-    PERFORMATIVE,
-    PERFORMATIVE_CFA,
-    PERFORMATIVE_CFB,
-    PERFORMATIVE_CFM,
-    PERFORMATIVE_DEREGISTER_AGENT,
-    PERFORMATIVE_DEREGISTER_SERVICE,
-    PERFORMATIVE_GET,
-    PERFORMATIVE_REGISTER_SERVICE,
-    AMMO_SERVICE,
-    BACKUP_SERVICE,
-    MEDIC_SERVICE,
-    NAME,
-    TEAM,
-)
+from pygomas.config import TEAM_NONE, TEAM_ALLIED, TEAM_AXIS
+from pygomas.ontology import Performative, Service, Belief
 
 
-class Service(Agent):
+class ServiceAgent(Agent):
     def __init__(self, jid="cservice@localhost", password="secret"):
         self.services = {}
         super().__init__(jid=jid, password=password)
 
     def register_service(self, service_descriptor, jid):
-        name = service_descriptor[NAME]
-        team = service_descriptor[TEAM]
+        name = service_descriptor[Belief.NAME]
+        team = service_descriptor[Belief.TEAM]
 
         if name not in self.services.keys():
             self.services[name] = {TEAM_AXIS: [], TEAM_ALLIED: [], TEAM_NONE: []}
@@ -40,8 +26,8 @@ class Service(Agent):
         logger.info("Service {} of team {} registered for {}".format(name, team, jid))
 
     def deregister_service(self, service_descriptor, jid):
-        name = service_descriptor[NAME]
-        team = service_descriptor[TEAM]
+        name = service_descriptor[Belief.NAME]
+        team = service_descriptor[Belief.TEAM]
 
         if name in self.services.keys() and jid in self.services[name][team]:
             self.services[name][team].remove(jid)
@@ -61,8 +47,8 @@ class Service(Agent):
 
     def get_service(self, service_descriptor, questioner):
         logger.debug("get service: {}".format(service_descriptor))
-        name = service_descriptor[NAME]
-        team = service_descriptor[TEAM]
+        name = service_descriptor[Belief.NAME]
+        team = service_descriptor[Belief.TEAM]
 
         if name in self.services.keys():
             logger.debug("I got service")
@@ -76,19 +62,19 @@ class Service(Agent):
 
     async def setup(self):
         template1 = Template()
-        template1.set_metadata(PERFORMATIVE, PERFORMATIVE_REGISTER_SERVICE)
+        template1.set_metadata(str(Performative.PERFORMATIVE), str(Performative.REGISTER_SERVICE))
         self.add_behaviour(RegisterServiceBehaviour(), template1)
 
         template2 = Template()
-        template2.set_metadata(PERFORMATIVE, PERFORMATIVE_DEREGISTER_SERVICE)
+        template2.set_metadata(str(Performative.PERFORMATIVE), str(Performative.DEREGISTER_SERVICE))
         self.add_behaviour(DeregisterServiceBehaviour(), template2)
 
         template3 = Template()
-        template3.set_metadata(PERFORMATIVE, PERFORMATIVE_DEREGISTER_AGENT)
+        template3.set_metadata(str(Performative.PERFORMATIVE), str(Performative.DEREGISTER_AGENT))
         self.add_behaviour(DeregisterAgentBehaviour(), template3)
 
         template4 = Template()
-        template4.set_metadata(PERFORMATIVE, PERFORMATIVE_GET)
+        template4.set_metadata(str(Performative.PERFORMATIVE), str(Performative.GET))
         self.add_behaviour(GetServiceBehaviour(), template4)
 
 
@@ -129,13 +115,13 @@ class GetServiceBehaviour(CyclicBehaviour):
             names = self.agent.get_service(body, str(msg.sender).split("/")[0])
             reply = msg.make_reply()
             reply.body = json.dumps(names)
-            if body[NAME] == AMMO_SERVICE:
-                reply.set_metadata(PERFORMATIVE, PERFORMATIVE_CFA)
-            elif body[NAME] == MEDIC_SERVICE:
-                reply.set_metadata(PERFORMATIVE, PERFORMATIVE_CFM)
-            elif body[NAME] == BACKUP_SERVICE:
-                reply.set_metadata(PERFORMATIVE, PERFORMATIVE_CFB)
+            if body[Belief.NAME] == Service.AMMO:
+                reply.set_metadata(str(Performative.PERFORMATIVE), str(Performative.CFA))
+            elif body[Belief.NAME] == Service.MEDIC:
+                reply.set_metadata(str(Performative.PERFORMATIVE), str(Performative.CFM))
+            elif body[Belief.NAME] == Service.BACKUP:
+                reply.set_metadata(str(Performative.PERFORMATIVE), str(Performative.CFB))
             else:
-                reply.set_metadata(PERFORMATIVE, body[NAME])
+                reply.set_metadata(str(Performative.PERFORMATIVE), str(body[Belief.NAME]))
             await self.send(reply)
             logger.info("Services sent: {}".format(reply.body))

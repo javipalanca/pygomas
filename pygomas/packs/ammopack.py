@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from spade.behaviour import TimeoutBehaviour
 from spade.message import Message
 
-from pygomas.ontology import ACTION, DESTROY, PERFORMATIVE, PERFORMATIVE_INFORM, NAME
+from pygomas.ontology import Action, Performative, Belief
 from .pack import Pack, PACK_AMMOPACK, PACK_AUTODESTROY_TIMEOUT
 
 now = datetime.now
@@ -24,8 +24,8 @@ class AmmoPack(Pack):
     class AutoDestroyBehaviour(TimeoutBehaviour):
         async def run(self):
             msg = Message(to=self.agent.manager)
-            msg.set_metadata(PERFORMATIVE, PERFORMATIVE_INFORM)
-            content = {NAME: self.agent.name, ACTION: DESTROY}
+            msg.set_metadata(str(Performative.PERFORMATIVE), str(Performative.INFORM))
+            content = {Belief.NAME: self.agent.name, Action.ACTION: Action.DESTROY}
             msg.body = json.dumps(content)
             if self.agent.is_alive():
                 await self.send(msg)

@@ -20,6 +20,7 @@ from spade.template import Template
 
 from pygomas.agents.agent import AbstractAgent, LONG_RECEIVE_WAIT
 from pygomas.agents.bditroop import CLASS_SOLDIER
+from pygomas.agents.service import ServiceAgent
 from pygomas.packs.objpack import ObjectivePack
 from pygomas.packs.pack import PACK_NAME, PACK_NONE, PACK_OBJPACK, PACK_MEDICPACK, PACK_AMMOPACK
 from pygomas.utils.mobile import Mobile
@@ -35,44 +36,7 @@ from .config import (
     MISSING_SHOT_PROBABILITY,
 )
 from .map import TerrainMap
-from .ontology import (
-    ACTION,
-    AIM,
-    ANGLE,
-    CREATE,
-    DEC_HEALTH,
-    DESTROY,
-    DISTANCE,
-    FOV,
-    HEAD_X,
-    HEAD_Y,
-    HEAD_Z,
-    MAP,
-    PACKS,
-    QTY,
-    SHOTS,
-    VEL_X,
-    TYPE,
-    VEL_Y,
-    VEL_Z,
-    X,
-    Y,
-    Z,
-    PERFORMATIVE,
-    PERFORMATIVE_DATA,
-    PERFORMATIVE_GAME,
-    PERFORMATIVE_INIT,
-    PERFORMATIVE_OBJECTIVE,
-    PERFORMATIVE_PACK,
-    PERFORMATIVE_PACK_LOST,
-    PERFORMATIVE_SHOOT,
-    MANAGEMENT_SERVICE,
-    AMMO,
-    HEALTH,
-    NAME,
-    PERFORMATIVE_PACK_TAKEN,
-    TEAM,
-)
+from .ontology import Action, Belief, Performative, Service as ServiceOnto
 from .server import (
     Server,
     TCP_AGL,
@@ -90,7 +54,6 @@ from .server import (
     MSG_PACKS,
     QUIT_MSG,
 )
-from .service import Service
 from .stats import GameStatistic
 
 MILLISECONDS_IN_A_SECOND: int = 1000
@@ -167,7 +130,7 @@ class Manager(AbstractAgent, Agent):
         self.match_init = 0
         self.domain = name.split("@")[1]
         self.objective_agent = None
-        self.service_agent = Service(jid=self.service_jid, password=service_passwd)
+        self.service_agent = ServiceAgent(jid=self.service_jid, password=service_passwd)
         self.render_server = Server(map_name=self.map_name, port=self.port)
         self.din_objects = dict()
         self.map = TerrainMap()
@@ -193,12 +156,11 @@ class Manager(AbstractAgent, Agent):
                     if msg:
                         content = json.loads(msg.body)
 
-                        name = content[NAME]
-                        type_ = content[TYPE]
-                        team = content[TEAM]
+                        name = content[Belief.NAME]
+                        type_ = content[Action.TYPE]
+                        team = content[Belief.TEAM]
 
                         self.agent.agents[name] = MicroAgent()
-
                         self.agent.agents[name].jid = name
                         self.agent.agents[name].type = int(type_)
                         self.agent.agents[name].team = int(team)
@@ -206,15 +168,16 @@ class Manager(AbstractAgent, Agent):
 
                         logger.success("Manager: [" + name + "] is Ready!")
                         self.agent.number_of_agents += 1
-
+                    else:
+                        logger.warning("Manager: Still waiting for agents...")
                 logger.success(
                     "Manager (Accepted Agents): " + str(self.agent.number_of_agents)
                 )
                 for agent in self.agent.agents.values():
                     msg = Message()
-                    msg.set_metadata(PERFORMATIVE, PERFORMATIVE_INIT)
+                    msg.set_metadata(str(Performative.PERFORMATIVE), str(Performative.INIT))
                     msg.to = agent.jid
-                    msg.body = json.dumps({MAP: self.agent.map_name})
+                    msg.body = json.dumps({Action.MAP: self.agent.map_name})
                     await self.send(msg)
                     logger.success(
                         "Manager: Sending notification to fight to: " + agent.jid
@@ -236,15 +199,17 @@ class Manager(AbstractAgent, Agent):
         )
         logger.success("Powered by SPADE {}".format(spade.__version__))
 
-        await self.service_agent.start(auto_register=True)
+        template = Template()
+        template.set_metadata(str(Performative.PERFORMATIVE), str(Performative.INIT))
+        self.add_behaviour(InitBehaviour(), template)
 
-        self.register_service(MANAGEMENT_SERVICE)
+        await self.service_agent.start(auto_register=True)
+        self.register_service(ServiceOnto.MANAGEMENT)
 
         await self.render_server.start()
-
         self.map.load_map(self.map_name, self.config)
 
-        # Behaviour to listen to data (position, health?, an so on) from troop agents
+        # Behaviour to listen to data (position, health?, and so on) from troop agents
         self.launch_data_from_troop_listener_behaviour()
 
         # Behaviour to handle Shot messages
@@ -256,11 +221,15 @@ class Manager(AbstractAgent, Agent):
         # Behaviour to inform all agents that game has finished by time
         self.launch_game_timeout_inform_behaviour()
 
-        template = Template()
-        template.set_metadata(PERFORMATIVE, PERFORMATIVE_INIT)
-        self.add_behaviour(InitBehaviour(), template)
-
         await self.create_objectives()  # We need to do this when online
+
+        class RecvAllBehaviour(CyclicBehaviour):
+            async def run(self):
+                msg = await self.receive(timeout=LONG_RECEIVE_WAIT)
+                if msg:
+                    logger.info("Manager: Received message: {}".format(msg))
+        #self.add_behaviour(RecvAllBehaviour())
+
 
     # Behaviour to refresh all render engines connected
     def launch_render_engine_inform_behaviour(self):
@@ -324,7 +293,7 @@ class Manager(AbstractAgent, Agent):
         self.add_behaviour(InformRenderEngineBehaviour(self.fps))
         logger.debug("InformRenderEngineBehaviour started.")
 
-    # Behaviour to listen to data (position, health?, an so on) from troop agents
+    # Behaviour to listen to data (position, health?, and so on) from troop agents
     def launch_data_from_troop_listener_behaviour(self):
         class DataFromTroopBehaviour(CyclicBehaviour):
             async def run(self):
@@ -334,43 +303,43 @@ class Manager(AbstractAgent, Agent):
                 try:
                     if msg:
                         content = json.loads(msg.body)
-                        id_agent = content[NAME]
+                        id_agent = content[Belief.NAME]
 
-                        self.agent.agents[id_agent].locate.position.x = int(content[X])
-                        self.agent.agents[id_agent].locate.position.y = int(content[Y])
-                        self.agent.agents[id_agent].locate.position.z = int(content[Z])
+                        self.agent.agents[id_agent].locate.position.x = int(content[Action.X])
+                        self.agent.agents[id_agent].locate.position.y = int(content[Action.Y])
+                        self.agent.agents[id_agent].locate.position.z = int(content[Action.Z])
                         self.agent.agents[id_agent].is_updated = True
 
                         self.agent.agents[id_agent].locate.velocity.x = float(
-                            content[VEL_X]
+                            content[Action.VEL_X]
                         )
                         self.agent.agents[id_agent].locate.velocity.y = float(
-                            content[VEL_Y]
+                            content[Action.VEL_Y]
                         )
                         self.agent.agents[id_agent].locate.velocity.z = float(
-                            content[VEL_Z]
+                            content[Action.VEL_Z]
                         )
 
                         self.agent.agents[id_agent].locate.heading.x = float(
-                            content[HEAD_X]
+                            content[Action.HEAD_X]
                         )
                         self.agent.agents[id_agent].locate.heading.y = float(
-                            content[HEAD_Y]
+                            content[Action.HEAD_Y]
                         )
                         self.agent.agents[id_agent].locate.heading.z = float(
-                            content[HEAD_Z]
+                            content[Action.HEAD_Z]
                         )
 
-                        self.agent.agents[id_agent].health = int(content[HEALTH])
-                        self.agent.agents[id_agent].ammo = int(content[AMMO])
+                        self.agent.agents[id_agent].health = int(content[Belief.HEALTH])
+                        self.agent.agents[id_agent].ammo = int(content[Belief.AMMO])
 
                         packs = await self.agent.check_objects_at_step(
                             id_agent, behaviour=self
                         )
                         fov_objects = self.agent.look(id_agent)
-                        content = {PACKS: packs, FOV: fov_objects}
+                        content = {Action.PACKS: packs, Action.FOV: fov_objects}
                         msg = Message(to=id_agent)
-                        msg.set_metadata(PERFORMATIVE, PERFORMATIVE_DATA)
+                        msg.set_metadata(str(Performative.PERFORMATIVE), str(Performative.DATA))
                         msg.body = json.dumps(content)
 
                         await self.send(msg)
@@ -384,7 +353,7 @@ class Manager(AbstractAgent, Agent):
                     logger.warning(traceback.format_exc())
 
         template = Template()
-        template.set_metadata(PERFORMATIVE, PERFORMATIVE_DATA)
+        template.set_metadata(str(Performative.PERFORMATIVE), str(Performative.DATA))
 
         self.add_behaviour(DataFromTroopBehaviour(), template)
 
@@ -395,10 +364,10 @@ class Manager(AbstractAgent, Agent):
                 msg = await self.receive(timeout=LONG_RECEIVE_WAIT)
                 if msg:
                     content = json.loads(msg.body)
-                    shooter_id = content[NAME]
-                    aim = int(content[AIM])
-                    shots = int(content[SHOTS])
-                    victim_pos = Vector3D(x=content[X], y=content[Y], z=content[Z])
+                    shooter_id = content[Belief.NAME]
+                    aim = int(content[Action.AIM])
+                    shots = int(content[Action.SHOTS])
+                    victim_pos = Vector3D(x=content[Action.X], y=content[Action.Y], z=content[Action.Z])
                     try:
                         shooter = self.agent.agents[shooter_id]
                     except KeyError:
@@ -432,16 +401,16 @@ class Manager(AbstractAgent, Agent):
                                     din_object.owner = 0
                                     msg_pack = Message(to=str(din_object.jid))
                                     msg_pack.set_metadata(
-                                        PERFORMATIVE, PERFORMATIVE_PACK_LOST
+                                        Performative.PERFORMATIVE, Performative.PACK_LOST
                                     )
                                     din_object.position.x = victim.locate.position.x
                                     din_object.position.y = victim.locate.position.y
                                     din_object.position.z = victim.locate.position.z
                                     msg_pack.body = json.dumps(
                                         {
-                                            X: victim.locate.position.x,
-                                            Y: victim.locate.position.y,
-                                            Z: victim.locate.position.z,
+                                            Action.X: victim.locate.position.x,
+                                            Action.Y: victim.locate.position.y,
+                                            Action.Z: victim.locate.position.z,
                                         }
                                     )
                                     await self.send(msg_pack)
@@ -453,12 +422,12 @@ class Manager(AbstractAgent, Agent):
                                     break
 
                     msg_shot = Message(to=victim.jid)
-                    msg_shot.set_metadata(PERFORMATIVE, PERFORMATIVE_SHOOT)
-                    msg_shot.body = json.dumps({DEC_HEALTH: damage})
+                    msg_shot.set_metadata(str(Performative.PERFORMATIVE), str(Performative.SHOOT))
+                    msg_shot.body = json.dumps({Action.DEC_HEALTH: damage})
                     await self.send(msg_shot)
 
         template = Template()
-        template.set_metadata(PERFORMATIVE, PERFORMATIVE_SHOOT)
+        template.set_metadata(str(Performative.PERFORMATIVE), str(Performative.SHOOT))
         self.add_behaviour(ShootResponderBehaviour(), template)
 
     # Behaviour to handle Pack Management: Creation and Destruction
@@ -469,10 +438,10 @@ class Manager(AbstractAgent, Agent):
                 if msg:
                     content = json.loads(msg.body)
 
-                    id_ = content[NAME]
-                    action = content[ACTION]
+                    id_ = content[Belief.NAME]
+                    action = content[Action.ACTION]
 
-                    if action == DESTROY:
+                    if action == Action.DESTROY:
                         self.agent.game_statistic.pack_destroyed(
                             self.agent.din_objects[id_]
                         )
@@ -484,13 +453,13 @@ class Manager(AbstractAgent, Agent):
                             logger.info("Pack {} cannot be erased".format(id_))
                         return
 
-                    if action == CREATE:
-                        type_ = int(content[TYPE])
-                        team = int(content[TEAM])
+                    if action == Action.CREATE:
+                        type_ = int(content[Action.TYPE])
+                        team = int(content[Belief.TEAM])
 
-                        x = float(content[X])
-                        y = float(content[Y])
-                        z = float(content[Z])
+                        x = float(content[Action.X])
+                        y = float(content[Action.Y])
+                        z = float(content[Action.Z])
 
                         din_object = DinObject()
                         din_object.jid = msg.sender
@@ -514,7 +483,7 @@ class Manager(AbstractAgent, Agent):
                         return
 
         template = Template()
-        template.set_metadata(PERFORMATIVE, PERFORMATIVE_PACK)
+        template.set_metadata(str(Performative.PERFORMATIVE), str(Performative.PACK))
         self.add_behaviour(PackManagementResponderBehaviour(), template)
 
     # Behaviour to inform all agents that game has finished by time
@@ -602,7 +571,7 @@ class Manager(AbstractAgent, Agent):
                             + ": got a medic pack "
                             + str(din_object.jid)
                         )
-                        content = {TYPE: type_, QTY: quantity}
+                        content = {Action.TYPE: type_, Action.QTY: quantity}
 
                     except KeyError:
                         logger.error("Could not delete the din object {}".format(id_))
@@ -616,7 +585,7 @@ class Manager(AbstractAgent, Agent):
                             + ": got an ammo pack "
                             + str(din_object.jid)
                         )
-                        content = {TYPE: type_, QTY: quantity}
+                        content = {Action.TYPE: type_, Action.QTY: quantity}
                     except KeyError:
                         logger.error("Could not delete the din object {}".format(id_))
 
@@ -635,7 +604,7 @@ class Manager(AbstractAgent, Agent):
                             din_object.position.z,
                         ) = (0.0, 0.0, 0.0)
                         self.agents[id_agent].is_carrying_objective = True
-                        content = {TYPE: type_, QTY: 0, TEAM: TEAM_ALLIED}
+                        content = {Action.TYPE: type_, Action.QTY: 0, Belief.TEAM: TEAM_ALLIED}
 
                     elif team == TEAM_AXIS:
                         if din_object.is_taken:
@@ -647,13 +616,13 @@ class Manager(AbstractAgent, Agent):
                             din_object.position.x = self.map.get_target_x()
                             din_object.position.y = self.map.get_target_y()
                             din_object.position.z = self.map.get_target_z()
-                            content = {TYPE: type_, QTY: 0, TEAM: TEAM_AXIS}
+                            content = {Action.TYPE: type_, Action.QTY: 0, Belief.TEAM: TEAM_AXIS}
 
                 # // Send a destroy/taken msg to pack and an inform msg to agent
                 if content:
                     content = json.dumps(content)
                     msg = Message(to=owner)
-                    msg.set_metadata(PERFORMATIVE, PERFORMATIVE_PACK_TAKEN)
+                    msg.set_metadata(str(Performative.PERFORMATIVE), str(Belief.PACK_TAKEN))
                     msg.body = content
                     await behaviour.send(msg)
                     packs.append(content)
@@ -664,14 +633,14 @@ class Manager(AbstractAgent, Agent):
         content = []
         for fov_object in fov_objects:
             obj = {
-                TEAM: fov_object.team,
-                TYPE: fov_object.type,
-                ANGLE: fov_object.angle,
-                DISTANCE: fov_object.distance,
-                HEALTH: fov_object.health,
-                X: fov_object.position.x,
-                Y: fov_object.position.y,
-                Z: fov_object.position.z,
+                Belief.TEAM: fov_object.team,
+                Action.TYPE: fov_object.type,
+                Action.ANGLE: fov_object.angle,
+                Action.DISTANCE: fov_object.distance,
+                Belief.HEALTH: fov_object.health,
+                Action.X: fov_object.position.x,
+                Action.Y: fov_object.position.y,
+                Action.Z: fov_object.position.z,
             }
             content.append(obj)
         return content
@@ -951,11 +920,11 @@ class Manager(AbstractAgent, Agent):
     async def inform_objectives(self, behaviour):
 
         msg = Message()
-        msg.set_metadata(PERFORMATIVE, PERFORMATIVE_OBJECTIVE)
+        msg.set_metadata(str(Performative.PERFORMATIVE), str(Performative.OBJECTIVE))
         content = {
-            X: self.map.get_target_x(),
-            Y: self.map.get_target_y(),
-            Z: self.map.get_target_z(),
+            Action.X: self.map.get_target_x(),
+            Action.Y: self.map.get_target_y(),
+            Action.Z: self.map.get_target_z(),
         }
         msg.body = json.dumps(content)
         for agent in self.agents.values():
@@ -968,7 +937,7 @@ class Manager(AbstractAgent, Agent):
 
         for agent in self.agents.values():
             msg = Message()
-            msg.set_metadata(PERFORMATIVE, PERFORMATIVE_GAME)
+            msg.set_metadata(str(Performative.PERFORMATIVE), str(Performative.GAME))
             msg.body = "GAME FINISHED!! Winner Team: " + str(winner_team)
             msg.to = agent.jid
             await behaviour.send(msg)

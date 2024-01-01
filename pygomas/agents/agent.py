@@ -6,14 +6,7 @@ from spade.agent import Agent
 from spade.behaviour import OneShotBehaviour
 from spade.message import Message
 
-from pygomas.ontology import (
-    PERFORMATIVE,
-    PERFORMATIVE_DEREGISTER_AGENT,
-    PERFORMATIVE_DEREGISTER_SERVICE,
-    PERFORMATIVE_REGISTER_SERVICE,
-    NAME,
-    TEAM,
-)
+from pygomas.ontology import Performative, Belief
 
 LONG_RECEIVE_WAIT: int = 1000000
 
@@ -47,8 +40,8 @@ class AbstractAgent(object, metaclass=ABCMeta):
         class RegisterBehaviour(OneShotBehaviour):
             async def run(self):
                 msg = Message(to=self.agent.service_jid)
-                msg.set_metadata(PERFORMATIVE, PERFORMATIVE_REGISTER_SERVICE)
-                msg.body = json.dumps({NAME: service_name, TEAM: self.agent.team})
+                msg.set_metadata(str(Performative.PERFORMATIVE), str(Performative.REGISTER_SERVICE))
+                msg.body = json.dumps({Belief.NAME: service_name, Belief.TEAM: self.agent.team})
                 await self.send(msg)
 
         self.add_behaviour(RegisterBehaviour())
@@ -57,8 +50,8 @@ class AbstractAgent(object, metaclass=ABCMeta):
         class DeregisterBehaviour(OneShotBehaviour):
             async def run(self):
                 msg = Message(to=self.agent.service_jid)
-                msg.set_metadata(PERFORMATIVE, PERFORMATIVE_DEREGISTER_SERVICE)
-                msg.body = json.dumps({NAME: service_name, TEAM: self.agent.team})
+                msg.set_metadata(str(Performative.PERFORMATIVE), str(Performative.DEREGISTER_SERVICE))
+                msg.body = json.dumps({Belief.NAME: service_name, Belief.TEAM: self.agent.team})
                 await self.send(msg)
 
         self.add_behaviour(DeregisterBehaviour())
@@ -67,7 +60,7 @@ class AbstractAgent(object, metaclass=ABCMeta):
         class DeregisterAgentBehaviour(OneShotBehaviour):
             async def run(self):
                 msg = Message(to=self.agent.service_jid)
-                msg.set_metadata(PERFORMATIVE, PERFORMATIVE_DEREGISTER_AGENT)
+                msg.set_metadata(str(Performative.PERFORMATIVE), str(Performative.DEREGISTER_AGENT))
                 await self.send(msg)
                 logger.info("Agent {}  stopped sends message to deregister to service agent.".format(self.agent.name))
 

@@ -1,5 +1,5 @@
 import pygomas.utils.sight
-import pygomas.service
+import pygomas.agents.service
 import pygomas.config
 import pygomas.map
 import pygomas.agents.agent

@@ -416,6 +416,7 @@ def set_verbosity(verbose):
         logging.getLogger("spade").setLevel(logging.INFO)
     if verbose > 3:
         logging.getLogger("aioxmpp").setLevel(logging.INFO)
+        logging.getLogger("spade").setLevel(logging.DEBUG)
     else:
         logging.getLogger("aioxmpp").setLevel(logging.WARNING)
 
