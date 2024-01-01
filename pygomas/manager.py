@@ -37,23 +37,7 @@ from .config import (
 )
 from .map import TerrainMap
 from .ontology import Action, Belief, Performative, Service as ServiceOnto
-from .server import (
-    Server,
-    TCP_AGL,
-    TCP_COM,
-    MSG_AGENTS,
-    MSG_CONTENT_NAME,
-    MSG_CONTENT_TYPE,
-    MSG_CONTENT_TEAM,
-    MSG_CONTENT_HEALTH,
-    MSG_CONTENT_AMMO,
-    MSG_CONTENT_CARRYINGFLAG,
-    MSG_CONTENT_POSITION,
-    MSG_CONTENT_VELOCITY,
-    MSG_CONTENT_HEADING,
-    MSG_PACKS,
-    QUIT_MSG,
-)
+from .server import Server, TCP, Msg
 from .stats import GameStatistic
 
 MILLISECONDS_IN_A_SECOND: int = 1000
@@ -243,25 +227,25 @@ class Manager(AbstractAgent, Agent):
                 ):
 
                     msg = {
-                        MSG_AGENTS: [
+                        Msg.AGENTS: [
                             {
-                                MSG_CONTENT_NAME: agent.jid.split("@")[0],
-                                MSG_CONTENT_TYPE: agent.type,
-                                MSG_CONTENT_TEAM: agent.team,
-                                MSG_CONTENT_HEALTH: agent.health,
-                                MSG_CONTENT_AMMO: agent.ammo,
-                                MSG_CONTENT_CARRYINGFLAG: agent.is_carrying_objective,
-                                MSG_CONTENT_POSITION: [
+                                Msg.CONTENT_NAME: agent.jid.split("@")[0],
+                                Msg.CONTENT_TYPE: agent.type,
+                                Msg.CONTENT_TEAM: agent.team,
+                                Msg.CONTENT_HEALTH: agent.health,
+                                Msg.CONTENT_AMMO: agent.ammo,
+                                Msg.CONTENT_CARRYINGFLAG: agent.is_carrying_objective,
+                                Msg.CONTENT_POSITION: [
                                     agent.locate.position.x,
                                     agent.locate.position.y,
                                     agent.locate.position.z,
                                 ],
-                                MSG_CONTENT_VELOCITY: [
+                                Msg.CONTENT_VELOCITY: [
                                     agent.locate.velocity.x,
                                     agent.locate.velocity.y,
                                     agent.locate.velocity.z,
                                 ],
-                                MSG_CONTENT_HEADING: [
+                                Msg.CONTENT_HEADING: [
                                     agent.locate.heading.x,
                                     agent.locate.heading.y,
                                     agent.locate.heading.z,
@@ -269,11 +253,11 @@ class Manager(AbstractAgent, Agent):
                             }
                             for agent in self.agent.agents.values()  # if agent.is_updated
                         ],
-                        MSG_PACKS: [
+                        Msg.PACKS: [
                             {
-                                MSG_CONTENT_NAME: pack.render_id,
-                                MSG_CONTENT_TYPE: pack.type,
-                                MSG_CONTENT_POSITION: [
+                                Msg.CONTENT_NAME: pack.render_id,
+                                Msg.CONTENT_TYPE: pack.type,
+                                Msg.CONTENT_POSITION: [
                                     pack.position.x,
                                     pack.position.y,
                                     pack.position.z,
@@ -287,7 +271,7 @@ class Manager(AbstractAgent, Agent):
                     for task in self.agent.render_server.get_connections():
                         if self.agent.render_server.is_ready(task):
                             self.agent.render_server.send_msg_to_render_engine(
-                                task, TCP_AGL, msg
+                                task, TCP.AGL, msg
                             )
 
         self.add_behaviour(InformRenderEngineBehaviour(self.fps))
@@ -944,7 +928,7 @@ class Manager(AbstractAgent, Agent):
         for st in self.render_server.get_connections():
             try:
                 # st.send_msg_to_render_engine(TCP_COM, "FINISH " + " GAME FINISHED!! Winner Team: " + str(winner_team))
-                st.send_msg_to_render_engine(TCP_COM, QUIT_MSG)
+                st.send_msg_to_render_engine(TCP.COM, Msg.QUIT)
             except:
                 pass
 

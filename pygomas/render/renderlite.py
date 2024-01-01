@@ -22,29 +22,7 @@ from pygame.rect import Rect
 from pygomas.agents.bditroop import CLASS_NONE, CLASS_SOLDIER, CLASS_MEDIC, CLASS_ENGINEER, CLASS_FIELDOPS
 from pygomas.config import TEAM_AXIS, TEAM_ALLIED, TEAM_NONE
 from pygomas.packs.pack import PACK_MEDICPACK, PACK_AMMOPACK, PACK_OBJPACK
-from pygomas.server import (
-    MSG_TYPE,
-    MSG_BODY,
-    TCP_AGL,
-    TCP_COM,
-    TCP_MAP,
-    TCP_TIME,
-    TCP_ERR,
-    MSG_AGENTS,
-    MSG_PACKS,
-    MSG_CONTENT_NAME,
-    MSG_CONTENT_TYPE,
-    MSG_CONTENT_TEAM,
-    MSG_CONTENT_HEALTH,
-    MSG_CONTENT_AMMO,
-    MSG_CONTENT_CARRYINGFLAG,
-    MSG_CONTENT_POSITION,
-    MSG_CONTENT_HEADING,
-    WELCOME_MSG,
-    READY_MSG,
-    QUIT_MSG,
-    ACCEPT_MSG,
-)
+from pygomas.server import TCP, Msg
 
 draw_rect = False
 
@@ -190,7 +168,7 @@ class Render(object):
                     data = json.loads(data)
                     data = self._load_json(data)
                     return data
-            return {MSG_TYPE: TCP_COM, MSG_BODY: QUIT_MSG}
+            return {Msg.TYPE: TCP.COM, Msg.BODY: Msg.QUIT}
 
     def _load_json(self, data):
         if isinstance(data, dict):
@@ -253,26 +231,26 @@ class Render(object):
                 if data is None:
                     continue
 
-                if data[MSG_TYPE] == TCP_COM:
-                    if data[MSG_BODY] == WELCOME_MSG:
+                if data[int(Msg.TYPE)] == TCP.COM:
+                    if data[int(Msg.BODY)] == Msg.WELCOME:
                         if not self.replay:
                             msg_to_send = msgpack.packb(
-                                {MSG_TYPE: TCP_COM, MSG_BODY: READY_MSG},
+                                {Msg.TYPE: TCP.COM, Msg.BODY: Msg.READY},
                                 use_bin_type=True,
                             )
                             size_of_package = len(msg_to_send)
                             msg = struct.pack(">I", size_of_package) + msg_to_send
                             self.s.send(msg)
-                    elif data[MSG_BODY] == ACCEPT_MSG:
+                    elif data[Msg.BODY] == Msg.ACCEPT:
                         pass
-                    elif data[MSG_BODY] == QUIT_MSG:
+                    elif data[Msg.BODY] == Msg.QUIT:
                         self.quit = True
 
-                elif data[MSG_TYPE] == TCP_MAP:
+                elif data[Msg.TYPE] == TCP.MAP:
                     if self.dump:
                         self.dump_data(data)
                     else:
-                        mapname = data[MSG_BODY]
+                        mapname = data[Msg.BODY]
                         result = self.load_map(mapname)
                         if result["status"] != "ok":
                             error = result["value"]
@@ -281,16 +259,16 @@ class Render(object):
                         if not self.text:
                             self.init_sprites()
 
-                elif data[MSG_TYPE] == TCP_AGL:
+                elif data[Msg.TYPE] == TCP.AGL:
                     if self.dump:
                         self.dump_data(data)
                     else:
-                        self.agl_parse(data[MSG_BODY])
+                        self.agl_parse(data[Msg.BODY])
                         self.fps.append(1 / (time.time() - start_time))
 
-                elif data[MSG_TYPE] == TCP_TIME:
+                elif data[Msg.TYPE] == TCP.TIME:
                     pass
-                elif data[MSG_TYPE] == TCP_ERR:
+                elif data[Msg.TYPE] == TCP.ERR:
                     pass
                 else:
                     # Unknown message type
@@ -310,7 +288,7 @@ class Render(object):
             if not self.replay:
                 logger.info("Sending QUIT message...")
                 msg_to_send = msgpack.packb(
-                    {MSG_TYPE: TCP_COM, MSG_BODY: QUIT_MSG}, use_bin_type=True,
+                    {Msg.TYPE: TCP.COM, Msg.BODY: Msg.QUIT}, use_bin_type=True,
                 )
                 size_of_package = len(msg_to_send)
                 msg = struct.pack(">I", size_of_package) + msg_to_send
@@ -341,11 +319,11 @@ class Render(object):
     def agl_parse(self, data):
         self.dins = {}
 
-        for agent in data[MSG_AGENTS]:
-            self.agents[agent[MSG_CONTENT_NAME]] = agent
+        for agent in data[Msg.AGENTS]:
+            self.agents[agent[Msg.CONTENT_NAME]] = agent
 
-        for pack in data[MSG_PACKS]:
-            self.dins[pack[MSG_CONTENT_NAME]] = pack
+        for pack in data[Msg.PACKS]:
+            self.dins[pack[Msg.CONTENT_NAME]] = pack
 
     def draw(self, stdscr):
         if self.text:
@@ -412,45 +390,45 @@ class Render(object):
 
     def pygame_draw_units(self):
         for name, agent in self.agents.items():
-            health = float(agent[MSG_CONTENT_HEALTH])
+            health = float(agent[Msg.CONTENT_HEALTH])
             posx = (
-                    int(float(agent[MSG_CONTENT_POSITION][0]) * self.tile_size / 8.0)
+                    int(float(agent[Msg.CONTENT_POSITION][0]) * self.tile_size / 8.0)
                     + self.xdesp
             )
             posy = (
-                    int(float(agent[MSG_CONTENT_POSITION][2]) * self.tile_size / 8.0)
+                    int(float(agent[Msg.CONTENT_POSITION][2]) * self.tile_size / 8.0)
                     + self.ydesp
             )
 
             if float(health) > 0:
-                carrying = agent[MSG_CONTENT_CARRYINGFLAG]
+                carrying = agent[Msg.CONTENT_CARRYINGFLAG]
 
                 # agent_type = {0: "X", 1: "*", 2: "+", 3: "Y", 4: "^"}.get(
                 agent_type = {CLASS_NONE: "soldier", CLASS_SOLDIER: "soldier", CLASS_MEDIC: "medic", CLASS_ENGINEER: "engineer",
-                              CLASS_FIELDOPS: "fieldops"}.get(agent[MSG_CONTENT_TYPE], "soldier")
+                              CLASS_FIELDOPS: "fieldops"}.get(agent[Msg.CONTENT_TYPE], "soldier")
 
                 team = {TEAM_ALLIED: (255, 50, 50), TEAM_AXIS: (100, 100, 255)}.get(
-                    agent[MSG_CONTENT_TEAM], (255, 255, 0)
+                    agent[Msg.CONTENT_TEAM], (255, 255, 0)
                 )
 
                 team_aplha = {TEAM_ALLIED: (255, 100, 100, 100), TEAM_AXIS: (100, 100, 255, 100)}.get(
-                    agent[MSG_CONTENT_TEAM], (255, 255, 0, 255)
+                    agent[Msg.CONTENT_TEAM], (255, 255, 0, 255)
                 )
 
-                ammo = float(agent[MSG_CONTENT_AMMO])
+                ammo = float(agent[Msg.CONTENT_AMMO])
 
                 # print avatar
                 if name not in self.sprites:
-                    sprite = MySprite(name=agent_type, team=agent[MSG_CONTENT_TEAM], num_sprites=8, scale=0.55)
+                    sprite = MySprite(name=agent_type, team=agent[Msg.CONTENT_TEAM], num_sprites=8, scale=0.55)
                     self.sprites[name] = sprite
-                angx = float(agent[MSG_CONTENT_HEADING][0])
-                angy = float(agent[MSG_CONTENT_HEADING][2])
+                angx = float(agent[Msg.CONTENT_HEADING][0])
+                angy = float(agent[Msg.CONTENT_HEADING][2])
                 self.sprites[name].update(posx, posy, angx, angy)
                 self.sprites[name].draw(self.screen)
 
                 if self.show_info:
                     # print name
-                    text = self.font.render(agent[MSG_CONTENT_NAME], True, (255, 255, 255))
+                    text = self.font.render(agent[Msg.CONTENT_NAME], True, (255, 255, 255))
                     self.screen.blit(
                         text,
                         (
@@ -478,8 +456,8 @@ class Render(object):
                 # print fov
                 if self.show_fovs:
                     # compute direction
-                    angx = float(agent[MSG_CONTENT_HEADING][0])
-                    angy = float(agent[MSG_CONTENT_HEADING][2])
+                    angx = float(agent[Msg.CONTENT_HEADING][0])
+                    angy = float(agent[Msg.CONTENT_HEADING][2])
 
                     angle = get_angle(angx, angy)
 
@@ -495,7 +473,7 @@ class Render(object):
                         )
 
             else:
-                team = agent[MSG_CONTENT_TEAM]
+                team = agent[Msg.CONTENT_TEAM]
                 if team not in self.graves:
                     sprite = MySprite(name="grave", team=team, num_sprites=1, scale=0.3)
                     self.graves[team] = sprite
@@ -505,14 +483,14 @@ class Render(object):
     def pygame_draw_packs(self):
         for pack in self.dins.values():
             posx = int(
-                pack[MSG_CONTENT_POSITION][0] * (self.tile_size / 8.0) + self.xdesp
+                pack[Msg.CONTENT_POSITION][0] * (self.tile_size / 8.0) + self.xdesp
             )
             posy = int(
-                pack[MSG_CONTENT_POSITION][2] * (self.tile_size / 8.0) + self.ydesp
+                pack[Msg.CONTENT_POSITION][2] * (self.tile_size / 8.0) + self.ydesp
             )
 
-            item_type = pack[MSG_CONTENT_TYPE]  # {1001: "M", 1002: "A", 1003: "F"}.get(
-            # pack[MSG_CONTENT_TYPE], "X"
+            item_type = pack[Msg.CONTENT_TYPE]  # {1001: "M", 1002: "A", 1003: "F"}.get(
+            # pack[Msg.CONTENT_TYPE], "X"
             # )
 
             if item_type != PACK_OBJPACK:
@@ -521,7 +499,7 @@ class Render(object):
                     1001: (88, 214, 141),  # (255, 255, 255),
                     1002: (155, 89, 182),  # (255, 255, 255),
                     1003: (255, 255, 0),
-                }.get(pack[MSG_CONTENT_TYPE], "X")
+                }.get(pack[Msg.CONTENT_TYPE], "X")
 
                 pygame.draw.circle(self.screen, color, [posx, posy], 6)
                 text = self.font.render(item_type, True, (0, 0, 0))
@@ -668,11 +646,11 @@ class Render(object):
         for pack in self.dins.values():
             #  Type
             symbol = {"1001": "M", "1002": "A", "1003": "F"}.get(
-                str(pack[MSG_CONTENT_TYPE]), "X"
+                str(pack[Msg.CONTENT_TYPE]), "X"
             )
 
-            y = int(float(pack[MSG_CONTENT_POSITION][2]) / 8)
-            x = int(float(pack[MSG_CONTENT_POSITION][0]) / (8 / self.factor))
+            y = int(float(pack[Msg.CONTENT_POSITION][2]) / 8)
+            x = int(float(pack[Msg.CONTENT_POSITION][0]) / (8 / self.factor))
             if height > y:
                 stdscr.addstr(y, x, symbol, curses.color_pair(2))
 
@@ -685,22 +663,22 @@ class Render(object):
         stats_axis = []  # ""
         # for k, v in list(self.agents.items()):
         for agent in self.agents.values():
-            name = agent[MSG_CONTENT_NAME]
+            name = agent[Msg.CONTENT_NAME]
             name = name[:5] + ".." + name[-5:] if len(name) > 12 else name
             # Type
-            symbol = {1: "*", 2: "+", 3: "Y", 4: "^"}.get(agent[MSG_CONTENT_TYPE], "X")
+            symbol = {1: "*", 2: "+", 3: "Y", 4: "^"}.get(agent[Msg.CONTENT_TYPE], "X")
 
             # Team (or Carrier)
-            team_color = {100: 5, 200: 6, }.get(agent[MSG_CONTENT_TEAM], 1)
+            team_color = {100: 5, 200: 6, }.get(agent[Msg.CONTENT_TEAM], 1)
 
-            if agent[MSG_CONTENT_CARRYINGFLAG]:
+            if agent[Msg.CONTENT_CARRYINGFLAG]:
                 team_color = 2
 
             # Draw in map
-            y = int(float(agent[MSG_CONTENT_POSITION][2]) / 8)
-            x = int(float(agent[MSG_CONTENT_POSITION][0]) / (8 / self.factor))
-            health = int(agent[MSG_CONTENT_HEALTH])
-            ammo = int(agent[MSG_CONTENT_AMMO])
+            y = int(float(agent[Msg.CONTENT_POSITION][2]) / 8)
+            x = int(float(agent[Msg.CONTENT_POSITION][0]) / (8 / self.factor))
+            health = int(agent[Msg.CONTENT_HEALTH])
+            ammo = int(agent[Msg.CONTENT_AMMO])
             if health > 0:
                 if height > y:
                     stdscr.addstr(y, x, symbol, curses.color_pair(team_color))  #  Alive
@@ -708,14 +686,14 @@ class Render(object):
                 if height > y:
                     stdscr.addstr(y, x, "D", curses.color_pair(7))  #  Dead
             # Write stats
-            if agent[MSG_CONTENT_TEAM] == 100:
+            if agent[Msg.CONTENT_TEAM] == 100:
                 if health > 0:
                     stats_allied.append(
                         f" | {symbol} {name.ljust(4)} {health:03d} {ammo:03d} "
                     )
                 else:
                     stats_allied.append(f" | {symbol} {name.ljust(4)} --- --- ")
-            elif agent[MSG_CONTENT_TEAM] == 200:
+            elif agent[Msg.CONTENT_TEAM] == 200:
                 if health > 0:
                     # stats_axis += " | %s %s %03d %03d " % (c, k, int(v["health"]), int(v["ammo"]))
                     stats_axis.append(
