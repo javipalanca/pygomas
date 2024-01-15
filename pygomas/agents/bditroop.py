@@ -58,17 +58,17 @@ MV_ALREADY_IN_DEST = 2
 
 class BDITroop(AbstractAgent, BDIAgent):
     def __init__(
-        self,
-        jid,
-        passwd,
-        asl,
-        team=TEAM_NONE,
-        map_path=None,
-        manager_jid="cmanager@localhost",
-        service_jid="cservice@localhost",
-        velocity_value=3,
-        *args,
-        **kwargs,
+            self,
+            jid,
+            passwd,
+            asl,
+            team=TEAM_NONE,
+            map_path=None,
+            manager_jid="cmanager@localhost",
+            service_jid="cservice@localhost",
+            velocity_value=3,
+            *args,
+            **kwargs,
     ):
         AbstractAgent.__init__(self, jid, team=team, service_jid=service_jid)
         BDIAgent.__init__(self, jid=jid, password=passwd, asl=asl, **kwargs)
@@ -514,8 +514,8 @@ class BDITroop(AbstractAgent, BDIAgent):
         @actions.add_function(
             ".delete",
             (
-                int,
-                tuple,
+                    int,
+                    tuple,
             ),
         )
         def _delete(index, tuple_):
@@ -524,7 +524,7 @@ class BDITroop(AbstractAgent, BDIAgent):
             elif index == len(tuple_) - 1:
                 return tuple_[:index]
             else:
-                return tuple_[0:index] + tuple_[index + 1 :]
+                return tuple_[0:index] + tuple_[index + 1:]
 
         super().add_custom_actions(actions)
 
@@ -570,14 +570,6 @@ class BDITroop(AbstractAgent, BDIAgent):
 
     class CreateBasicTroopBehaviour(OneShotBehaviour):
         async def run(self):
-            if self.agent.service_types is not None:
-                for service in self.agent.service_types:
-                    self.agent.register_service(str(service))
-            if self.agent.team == TEAM_ALLIED:
-                self.agent.register_service("allied")
-            else:
-                self.agent.register_service("axis")
-
             msg = Message(to=self.agent.manager)
             msg.set_metadata(str(Performative.PERFORMATIVE), str(Performative.INIT))
             msg.body = json.dumps(
@@ -589,6 +581,14 @@ class BDITroop(AbstractAgent, BDIAgent):
             )
             logger.trace(f"Sending init message: {msg}")
             await self.send(msg)
+
+            if self.agent.service_types is not None:
+                for service in self.agent.service_types:
+                    self.agent.register_service(str(service))
+            if self.agent.team == TEAM_ALLIED:
+                self.agent.register_service("allied")
+            else:
+                self.agent.register_service("axis")
 
     class MoveBehaviour(PeriodicBehaviour):
         async def run(self):
@@ -671,48 +671,48 @@ class BDITroop(AbstractAgent, BDIAgent):
                 if self.agent.bdi_enabled:
                     if self.agent.team == TEAM_ALLIED:
                         x = (
-                            (
-                                self.agent.map.allied_base.get_end_x()
-                                - self.agent.map.allied_base.get_init_x()
-                            )
-                            / 2
-                        ) + self.agent.map.allied_base.get_init_x()
+                                    (
+                                            self.agent.map.allied_base.get_end_x()
+                                            - self.agent.map.allied_base.get_init_x()
+                                    )
+                                    / 2
+                            ) + self.agent.map.allied_base.get_init_x()
                         y = (
-                            (
-                                self.agent.map.allied_base.get_end_y()
-                                - self.agent.map.allied_base.get_init_y()
-                            )
-                            / 2
-                        ) + self.agent.map.allied_base.get_init_y()
+                                    (
+                                            self.agent.map.allied_base.get_end_y()
+                                            - self.agent.map.allied_base.get_init_y()
+                                    )
+                                    / 2
+                            ) + self.agent.map.allied_base.get_init_y()
                         z = (
-                            (
-                                self.agent.map.allied_base.get_end_z()
-                                - self.agent.map.allied_base.get_init_z()
-                            )
-                            / 2
-                        ) + self.agent.map.allied_base.get_init_z()
+                                    (
+                                            self.agent.map.allied_base.get_end_z()
+                                            - self.agent.map.allied_base.get_init_z()
+                                    )
+                                    / 2
+                            ) + self.agent.map.allied_base.get_init_z()
                     elif self.agent.team == TEAM_AXIS:
                         x = (
-                            (
-                                self.agent.map.axis_base.get_end_x()
-                                - self.agent.map.axis_base.get_init_x()
-                            )
-                            / 2
-                        ) + self.agent.map.axis_base.get_init_x()
+                                    (
+                                            self.agent.map.axis_base.get_end_x()
+                                            - self.agent.map.axis_base.get_init_x()
+                                    )
+                                    / 2
+                            ) + self.agent.map.axis_base.get_init_x()
                         y = (
-                            (
-                                self.agent.map.axis_base.get_end_y()
-                                - self.agent.map.axis_base.get_init_y()
-                            )
-                            / 2
-                        ) + self.agent.map.axis_base.get_init_y()
+                                    (
+                                            self.agent.map.axis_base.get_end_y()
+                                            - self.agent.map.axis_base.get_init_y()
+                                    )
+                                    / 2
+                            ) + self.agent.map.axis_base.get_init_y()
                         z = (
-                            (
-                                self.agent.map.axis_base.get_end_z()
-                                - self.agent.map.axis_base.get_init_z()
-                            )
-                            / 2
-                        ) + self.agent.map.axis_base.get_init_z()
+                                    (
+                                            self.agent.map.axis_base.get_end_z()
+                                            - self.agent.map.axis_base.get_init_z()
+                                    )
+                                    / 2
+                            ) + self.agent.map.axis_base.get_init_z()
                     self.agent.bdi.set_belief(Belief.NAME, self.agent.name)
                     self.agent.bdi.set_belief(Belief.TEAM, self.agent.team)
                     self.agent.bdi.set_belief(Belief.CLASS, self.agent.eclass)
@@ -1152,7 +1152,7 @@ class BDITroop(AbstractAgent, BDIAgent):
                 radius_x=ESCAPE_RADIUS, radius_y=ESCAPE_RADIUS
             )
             if self.check_static_position(
-                self.movement.destination.x, self.movement.destination.z
+                    self.movement.destination.x, self.movement.destination.z
             ):
                 self.movement.calculate_new_orientation(self.movement.destination)
                 return
