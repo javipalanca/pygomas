@@ -1,5 +1,6 @@
-import random
 import math
+import random
+
 from .vector import Vector3D
 
 MAP_SCALE = 1

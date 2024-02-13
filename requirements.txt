@@ -1,8 +1,9 @@
-spade==3.2.2
-spade_bdi==0.2.1
-numpy==1.16.4
+spade==3.3.2
+spade_bdi==0.3.0
+numpy==1.26.2
 loguru==0.2.5
 pqdict==1.0.0
-click==7.0
-pygame==1.9.6
-msgpack==0.6.1
+click==8.1.7
+pygame==2.5.2
+msgpack==1.0.7
+strenum==0.4.15

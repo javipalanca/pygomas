@@ -10,21 +10,18 @@ os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "hide"
 import asyncio
 import json
 import sys
-import time
 from importlib import import_module
 
 from loguru import logger
-
 import click
 
-from spade import quit_spade
-from spade.container import Container
+import spade
 
-from . import renderlite
+from pygomas.render import renderlite
 from .config import TEAM_ALLIED, TEAM_AXIS
-from .bdifieldop import BDIFieldOp
-from .bdimedic import BDIMedic
-from .bdisoldier import BDISoldier
+from pygomas.agents.bdifieldop import BDIFieldOp
+from pygomas.agents.bdimedic import BDIMedic
+from pygomas.agents.bdisoldier import BDISoldier
 from .manager import Manager
 
 help_config = json.dumps(
@@ -177,18 +174,11 @@ def manager(
         fps=fps,
         port=port,
     )
-    future = manager_agent.start()
-    future.result()
 
-    while manager_agent.is_alive():
-        try:
-            time.sleep(0.1)
-        except KeyboardInterrupt:
-            break
-    click.echo("Stopping manager . . .")
-    manager_agent.stop().result()
+    async def main(agent):
+        await agent.start()
 
-    quit_spade()
+    spade.run(main(manager_agent))
 
     return 0
 
@@ -214,7 +204,7 @@ def manager(
     help="Show verbose debug level: -v level 1, -vv level 2, -vvv level 3, -vvvv level 4",
 )
 def run(game, map_path, verbose):
-    """Run a JSON game file with the players definition."""
+    """Run a JSON game file with the player's definition."""
 
     set_verbosity(verbose)
 
@@ -258,22 +248,7 @@ def run(game, map_path, verbose):
         )
         troops += new_troops
 
-    container = Container()
-    while not container.loop.is_running():
-        time.sleep(0.1)
-
-    futures = asyncio.run_coroutine_threadsafe(run_agents(troops), container.loop)
-    futures.result()
-
-    while any([agent.is_alive() for agent in troops]):
-        try:
-            time.sleep(1)
-        except KeyboardInterrupt:
-            break
-    click.echo("Stopping troops . . .")
-
-    quit_spade()
-
+    spade.run(run_agents(troops))
     return 0
 
 
@@ -401,7 +376,7 @@ def help(ctx, subcommand):
 
 async def run_agents(troops):
     coros = [agent.start(auto_register=True) for agent in troops]
-    return await asyncio.gather(*coros)
+    await asyncio.gather(*coros)
 
 
 def load_class(class_path):
@@ -441,6 +416,7 @@ def set_verbosity(verbose):
         logging.getLogger("spade").setLevel(logging.INFO)
     if verbose > 3:
         logging.getLogger("aioxmpp").setLevel(logging.INFO)
+        logging.getLogger("spade").setLevel(logging.DEBUG)
     else:
         logging.getLogger("aioxmpp").setLevel(logging.WARNING)
 

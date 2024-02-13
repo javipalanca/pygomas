@@ -1,15 +1,9 @@
-import pygomas.vector
-import pygomas.sight
-import pygomas.mobile
-import pygomas.service
-import pygomas.threshold
+import pygomas.utils.sight
+import pygomas.agents.service
 import pygomas.config
 import pygomas.map
-import pygomas.agent
+import pygomas.agents.agent
 import pygomas.server
-import pygomas.pack
-import pygomas.ammopack
-import pygomas.medicpack
-import pygomas.objpack
+import pygomas.packs.medicpack
 
-__version__ = "0.4.7"
+__version__ = "0.5.0"

@@ -1,25 +1,14 @@
 import json
-from loguru import logger
 
-from .ontology import (
-    ACTION,
-    CREATE,
-    TYPE,
-    X,
-    Y,
-    Z,
-    PERFORMATIVE,
-    PERFORMATIVE_PACK,
-    NAME,
-    PERFORMATIVE_PACK_TAKEN,
-    TEAM,
-)
-from .agent import AbstractAgent, LONG_RECEIVE_WAIT
-from .vector import Vector3D
-from spade.message import Message
-from spade.behaviour import OneShotBehaviour, CyclicBehaviour
-from spade.template import Template
+from loguru import logger
 from spade.agent import Agent
+from spade.behaviour import OneShotBehaviour, CyclicBehaviour
+from spade.message import Message
+from spade.template import Template
+
+from pygomas.agents.agent import AbstractAgent, LONG_RECEIVE_WAIT
+from pygomas.ontology import Action, Performative, Belief
+from pygomas.utils.vector import Vector3D
 
 PACK_NONE: int = 1000
 PACK_MEDICPACK: int = 1001
@@ -58,22 +47,22 @@ class Pack(AbstractAgent, Agent):
         self.add_behaviour(self.CreatePackBehaviour())
 
         t = Template()
-        t.set_metadata(PERFORMATIVE, PERFORMATIVE_PACK_TAKEN)
+        t.set_metadata(str(Performative.PERFORMATIVE), str(Belief.PACK_TAKEN))
         self.add_behaviour(self.PackTakenResponderBehaviour(), t)
 
     class CreatePackBehaviour(OneShotBehaviour):
         async def run(self):
             msg = Message(to=self.agent.manager)
-            msg.set_metadata(PERFORMATIVE, PERFORMATIVE_PACK)
+            msg.set_metadata(str(Performative.PERFORMATIVE), str(Performative.PACK))
             msg.body = json.dumps(
                 {
-                    NAME: self.agent.name,
-                    TEAM: self.agent.team,
-                    ACTION: CREATE,
-                    TYPE: self.agent.type,
-                    X: self.agent.position.x,
-                    Y: self.agent.position.y,
-                    Z: self.agent.position.z,
+                    Belief.NAME: self.agent.name,
+                    Belief.TEAM: self.agent.team,
+                    Action.ACTION: Action.CREATE,
+                    Action.TYPE: self.agent.type,
+                    Action.X: self.agent.position.x,
+                    Action.Y: self.agent.position.y,
+                    Action.Z: self.agent.position.z,
                 }
             )
             await self.send(msg)

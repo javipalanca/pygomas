@@ -1,36 +1,37 @@
 import asyncio
 import struct
+from enum import IntEnum
 
 import msgpack
-
 from loguru import logger
 
-from spade.container import Container
 
-TCP_COM = 0  # COMMUNICATION (ACCEPTED, CLOSED, REFUSED)
-TCP_AGL = 1  # AGENT LIST
-TCP_MAP = 2  # MAP: NAME, CHANGES, etc.
-TCP_TIME = 3  # TIME: LEFT TIME
-TCP_ERR = 4  # ERROR
+class TCP(IntEnum):
+    COM = 0  # COMMUNICATION (ACCEPTED, CLOSED, REFUSED)
+    AGL = 1  # AGENT LIST
+    MAP = 2  # MAP: NAME, CHANGES, etc.
+    TIME = 3  # TIME: LEFT TIME
+    ERR = 4  # ERROR
 
-MSG_TYPE = 501
-MSG_BODY = 502
-WELCOME_MSG = 503
-READY_MSG = 504
-QUIT_MSG = 505
-ACCEPT_MSG = 506
 
-MSG_AGENTS = 1001
-MSG_PACKS = 1002
-MSG_CONTENT_NAME = 1003
-MSG_CONTENT_TYPE = 1004
-MSG_CONTENT_TEAM = 1005
-MSG_CONTENT_HEALTH = 1006
-MSG_CONTENT_AMMO = 1007
-MSG_CONTENT_POSITION = 1008
-MSG_CONTENT_VELOCITY = 1009
-MSG_CONTENT_HEADING = 1010
-MSG_CONTENT_CARRYINGFLAG = 1011
+class Msg(IntEnum):
+    TYPE = 501
+    BODY = 502
+    WELCOME = 503
+    READY = 504
+    QUIT = 505
+    ACCEPT = 506
+    AGENTS = 1001
+    PACKS = 1002
+    CONTENT_NAME = 1003
+    CONTENT_TYPE = 1004
+    CONTENT_TEAM = 1005
+    CONTENT_HEALTH = 1006
+    CONTENT_AMMO = 1007
+    CONTENT_POSITION = 1008
+    CONTENT_VELOCITY = 1009
+    CONTENT_HEADING = 1010
+    CONTENT_CARRYINGFLAG = 1011
 
 
 class Server(object):
@@ -40,24 +41,16 @@ class Server(object):
         self.port = port
         self.server = None
 
-        self.container = Container()
-
-        self.loop = self.container.loop
-
-        self.coro = asyncio.start_server(
-            self.accept_client, "", self.port, loop=self.loop
-        )
-
     def get_connections(self):
         return self.clients.keys()
 
-    def start(self):
-        self.server = self.loop.create_task(self.coro)
+    async def start(self):
+        self.server = await asyncio.start_server(self.accept_client, "", self.port)
         logger.info("Render Server started: {}".format(self.server))
 
-    def stop(self):
-        self.server.stop()
-        self.loop.run_until_complete(self.server.wait_closed())
+    async def stop(self):
+        await self.server.stop()
+        await self.server.wait_closed()
 
     def accept_client(self, client_reader, client_writer):
         logger.info("New render connection")
@@ -84,7 +77,7 @@ class Server(object):
         logger.info("Preparing Connection to " + str(task))
 
         try:
-            self.send_msg_to_render_engine(task, msg_type=TCP_COM, msg=WELCOME_MSG)
+            self.send_msg_to_render_engine(task, msg_type=TCP.COM, msg=Msg.WELCOME)
             await writer.drain()
             logger.info("pygomas render engine server v. 0.2.0")
         except Exception as e:
@@ -110,22 +103,22 @@ class Server(object):
                 # exit loop and disconnect
                 return
 
-            data = msgpack.unpackb(data, raw=False)
+            data = msgpack.unpackb(data, raw=False, strict_map_key=False)
 
             logger.info("Client says:" + str(data))
-            if data[MSG_TYPE] == TCP_COM:
-                if data[MSG_BODY] == READY_MSG:
+            if data[Msg.TYPE] == TCP.COM:
+                if data[Msg.BODY] == Msg.READY:
                     logger.info("Server: Connection Accepted")
-                    self.send_msg_to_render_engine(task, TCP_COM, ACCEPT_MSG)
-                    self.send_msg_to_render_engine(task, TCP_MAP, self.map_name)
+                    self.send_msg_to_render_engine(task, TCP.COM, Msg.ACCEPT)
+                    self.send_msg_to_render_engine(task, TCP.MAP, self.map_name)
                     logger.info("Sending: NAME: " + self.map_name)
 
                     self.clients[task] = (reader, writer, True)
 
-                elif data[MSG_BODY] == QUIT_MSG:
+                elif data[Msg.BODY] == Msg.QUIT:
                     logger.info("Server: Client quitted")
                     self.send_msg_to_render_engine(
-                        task, TCP_COM, "Server: Connection Closed"
+                        task, TCP.COM, "Server: Connection Closed"
                     )
                     return
                 else:
@@ -133,9 +126,9 @@ class Server(object):
                     logger.info("Socket closed, closing connection.")
                     return
 
-            elif data[MSG_TYPE] == TCP_MAP:
+            elif data[Msg.TYPE] == TCP.MAP:
                 logger.info("Server: Client requested mapname")
-                self.send_msg_to_render_engine(task, TCP_MAP, self.map_name)
+                self.send_msg_to_render_engine(task, TCP.MAP, self.map_name)
                 self.clients[task] = (reader, writer, True)
 
     def send_msg_to_render_engine(self, task, msg_type, msg):
@@ -149,7 +142,7 @@ class Server(object):
             return
 
         msg_to_send = msgpack.packb(
-            {MSG_TYPE: msg_type, MSG_BODY: msg}, use_bin_type=True
+            {Msg.TYPE: msg_type, Msg.BODY: msg}, use_bin_type=True
         )
         size_of_package = len(msg_to_send)
 

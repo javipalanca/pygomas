@@ -3,7 +3,7 @@ import os
 import numpy as np
 from loguru import logger
 
-from .vector import Vector3D
+from pygomas.utils.vector import Vector3D
 
 MAP_SCALE = 8
 

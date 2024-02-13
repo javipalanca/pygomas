@@ -1,5 +1,6 @@
-import numpy as np
 from heapq import heappop, heappush
+
+import numpy as np
 
 
 class AAlgorithm:

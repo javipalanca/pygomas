@@ -2,7 +2,6 @@ import math
 
 
 class Vector3D(object):
-
     # Vector length
     def length(self):
         return math.sqrt(self.x * self.x + self.y * self.y + self.z * self.z)

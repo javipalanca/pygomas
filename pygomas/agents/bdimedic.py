@@ -3,10 +3,10 @@ import random
 from loguru import logger
 from spade.behaviour import OneShotBehaviour
 
-from .config import POWER_UNIT
+from pygomas.config import POWER_UNIT
+from pygomas.ontology import Service
+from pygomas.packs.medicpack import MedicPack
 from .bditroop import BDITroop, CLASS_MEDIC
-from .ontology import MEDIC_SERVICE
-from .medicpack import MedicPack
 
 
 class BDIMedic(BDITroop):
@@ -15,7 +15,7 @@ class BDIMedic(BDITroop):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.services.append(MEDIC_SERVICE)
+        self.services.append(Service.MEDIC)
         self.eclass = CLASS_MEDIC
 
     def add_custom_actions(self, actions):

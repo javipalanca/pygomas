@@ -3,10 +3,10 @@ import random
 from loguru import logger
 from spade.behaviour import OneShotBehaviour
 
-from .config import POWER_UNIT
-from .ammopack import AmmoPack
+from pygomas.config import POWER_UNIT
+from pygomas.ontology import Service
+from pygomas.packs.ammopack import AmmoPack
 from .bditroop import BDITroop, CLASS_FIELDOPS
-from .ontology import AMMO_SERVICE
 
 
 class BDIFieldOp(BDITroop):
@@ -15,7 +15,7 @@ class BDIFieldOp(BDITroop):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.services.append(AMMO_SERVICE)
+        self.services.append(Service.AMMO)
         self.eclass = CLASS_FIELDOPS
 
     def add_custom_actions(self, actions):
