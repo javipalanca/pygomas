@@ -14,20 +14,14 @@ from pygomas.algorithms.jps import JPSAlgorithm
 from pygomas.config import (
     Config,
     MIN_POWER,
-    MAX_POWER,
     POWER_UNIT,
     MIN_STAMINA,
-    MAX_STAMINA,
     STAMINA_UNIT,
     MIN_AMMO,
-    MAX_AMMO,
-    MIN_HEALTH,
-    MAX_HEALTH,
     TEAM_NONE,
     TEAM_ALLIED,
     TEAM_AXIS,
-    PRECISION_Z,
-    PRECISION_X,
+    INTERVAL_TO_MOVE,
 )
 from pygomas.map import TerrainMap
 from pygomas.ontology import Action, Belief, Performative, Service
@@ -41,15 +35,7 @@ from .agent import AbstractAgent, LONG_RECEIVE_WAIT
 DEFAULT_RADIUS = 20
 ESCAPE_RADIUS = 50
 
-INTERVAL_TO_MOVE = 0.05
-
 ARG_TEAM = 0
-
-CLASS_NONE = 0
-CLASS_SOLDIER = 1
-CLASS_MEDIC = 2
-CLASS_ENGINEER = 3
-CLASS_FIELDOPS = 4
 
 MV_OK = 0
 MV_CANNOT_GET_POSITION = 1
@@ -169,7 +155,7 @@ class BDITroop(AbstractAgent, BDIAgent):
 
         @actions.add(".goto", 1)
         def _goto(agent, term, intention):
-            """Sets the PyGomas destination. Expects args to be (x,y,z)"""
+            """Sets the pygomas destination. Expects args to be (x,y,z)"""
             args = asp.grounded(term.args, intention.scope)
             self.movement.destination.x = args[0][0]
             self.movement.destination.y = args[0][1]
@@ -177,9 +163,10 @@ class BDITroop(AbstractAgent, BDIAgent):
             start = (self.movement.position.x, self.movement.position.z)
             end = (self.movement.destination.x, self.movement.destination.z)
 
-            if self.check_static_position(x=end[0], z=end[1]):
+            if self.map.can_walk(x=end[0], z=end[1]):
                 path = self.path_finder.get_path(start, end)
                 if path:
+                    logger.info(f"[{self.jid.localpart}] goto: walking to {end} via {path}")
                     self.destinations = deque(path)
                     x, z = path[0]
                     self.movement.calculate_new_orientation(Vector3D(x=x, y=0, z=z))
@@ -260,7 +247,6 @@ class BDITroop(AbstractAgent, BDIAgent):
                     if self.agent.is_alive():
                         await self.send(msg)
 
-                    self.agent.decrease_ammo(shots)
                     return True
 
             b = ShootBehaviour()
@@ -504,7 +490,7 @@ class BDITroop(AbstractAgent, BDIAgent):
 
         @actions.add(".stop", 0)
         def _stop(agent, term, intention):
-            """Stops the PyGomas agent."""
+            """Stops the pygomas agent."""
             self.destinations = deque()
             self.movement.destination.x = self.movement.position.x
             self.movement.destination.y = self.movement.position.y
@@ -529,15 +515,10 @@ class BDITroop(AbstractAgent, BDIAgent):
         super().add_custom_actions(actions)
 
     async def start(self, auto_register=True):
-        self.health = MAX_HEALTH
         self.protection = 25
-        self.stamina = MAX_STAMINA
-        self.power = MAX_POWER
-        self.ammo = MAX_AMMO
+        await super().start(auto_register)
 
-        # Send a welcome message, and wait for the beginning of match
-        self.add_behaviour(self.CreateBasicTroopBehaviour())
-
+    async def setup(self) -> None:
         # Behaviour to get the objective of the game, to create the corresponding task
         t = Template()
         t.set_metadata(str(Performative.PERFORMATIVE), str(Performative.OBJECTIVE))
@@ -562,14 +543,8 @@ class BDITroop(AbstractAgent, BDIAgent):
         t.set_metadata(str(Performative.PERFORMATIVE), str(Performative.DATA))
         self.add_behaviour(self.DataFromTroopBehaviour(period=INTERVAL_TO_MOVE), t)
 
-        # Behaviour to increment inner variables (Power, Stamina and Health Bars)
-        # self.agent.Launch_BarsAddOn_InnerBehaviour()
-        self.add_behaviour(self.RestoreBehaviour(period=1))
-
-        await super().start(auto_register)
-
-    class CreateBasicTroopBehaviour(OneShotBehaviour):
-        async def run(self):
+    class InitResponderBehaviour(CyclicBehaviour):
+        async def send_manager_handshake(self):
             msg = Message(to=self.agent.manager)
             msg.set_metadata(str(Performative.PERFORMATIVE), str(Performative.INIT))
             msg.body = json.dumps(
@@ -579,7 +554,7 @@ class BDITroop(AbstractAgent, BDIAgent):
                     Belief.TEAM: str(self.agent.team),
                 }
             )
-            logger.trace(f"Sending init message: {msg}")
+            logger.info(f"[{self.agent.name}]:Sending handshake message: {msg}")
             await self.send(msg)
 
             if self.agent.service_types is not None:
@@ -590,73 +565,34 @@ class BDITroop(AbstractAgent, BDIAgent):
             else:
                 self.agent.register_service("axis")
 
-    class MoveBehaviour(PeriodicBehaviour):
         async def run(self):
-            if len(self.agent.destinations) > 0:
-                absx = abs(
-                    self.agent.destinations[0][0] - self.agent.movement.position.x
-                )
-                absz = abs(
-                    self.agent.destinations[0][1] - self.agent.movement.position.z
-                )
-                if (absx < PRECISION_X) and (absz < PRECISION_Z):
-                    x, z = self.agent.destinations.popleft()
-                    self.agent.movement.position = Vector3D(x=x, y=0, z=z)
-                    self.agent.bdi.set_belief(
-                        Belief.POSITION,
-                        tuple(
-                            (
-                                self.agent.movement.position.x,
-                                self.agent.movement.position.y,
-                                self.agent.movement.position.z,
-                            )
-                        ),
+            agent_registered_in_manager = False
+            while not agent_registered_in_manager:
+                await self.send_manager_handshake()
+                msg = await self.receive(timeout=5)
+                if msg:
+                    agent_registered_in_manager = True
+                    content = json.loads(msg.body)
+                    self.agent.health = content[Belief.HEALTH]
+                    self.agent.ammo = content[Belief.AMMO]
+                    self.agent.stamina = content[Belief.STAMINA]
+                    self.agent.power = content[Belief.POWER]
+                    logger.info(f"[{self.agent.name}]: Beginning to fight")
+                    map_name = content[Action.MAP]
+                    self.agent.map = TerrainMap()
+                    config = Config(self.agent.map_path)
+                    self.agent.map.load_map(map_name, config)
+                    # self.agent.path_finder = AAlgorithm(self.agent.map.terrain[:, :, 1])
+                    # self.agent.path_finder = JPSAlgorithm(self.agent.map.terrain[:, :, 1])
+                    self.agent.path_finder = JPSAlgorithm(
+                        self.agent.map.cost_terrain[:, :, 1]
                     )
-
-                    if len(self.agent.destinations) == 0:
-                        self.agent.bdi.set_belief(
-                            Belief.TARGET_REACHED,
-                            tuple(
-                                (
-                                    self.agent.movement.destination.x,
-                                    self.agent.movement.destination.y,
-                                    self.agent.movement.destination.z,
-                                )
-                            ),
-                        )
-                    else:
-                        x, z = self.agent.destinations[0]
-                    self.agent.compare_orientation(x, z)
+                    self.agent.movement = Mobile(self.agent.velocity_value)
+                    self.agent.movement.set_size(
+                        self.agent.map.get_size_x(), self.agent.map.get_size_z()
+                    )
                 else:
-                    move_result = self.agent.move(INTERVAL_TO_MOVE)
-                    if move_result == MV_CANNOT_GET_POSITION:
-                        self.agent.escape_barrier()
-
-    class InitResponderBehaviour(CyclicBehaviour):
-        async def run(self):
-            msg = await self.receive(timeout=LONG_RECEIVE_WAIT)
-            if msg:
-                map_name = json.loads(msg.body)[Action.MAP]
-                logger.info("[" + self.agent.name + "]: Beginning to fight")
-                self.agent.map = TerrainMap()
-                config = Config(self.agent.map_path)
-                self.agent.map.load_map(map_name, config)
-                # self.agent.path_finder = AAlgorithm(self.agent.map.terrain[:, :, 1])
-                # self.agent.path_finder = JPSAlgorithm(self.agent.map.terrain[:, :, 1])
-                self.agent.path_finder = JPSAlgorithm(
-                    self.agent.map.cost_terrain[:, :, 1]
-                )
-                self.agent.movement = Mobile(self.agent.velocity_value)
-                self.agent.movement.set_size(
-                    self.agent.map.get_size_x(), self.agent.map.get_size_z()
-                )
-                self.agent.generate_spawn_position()
-
-                t = Template()
-                t.set_metadata(str(Performative.PERFORMATIVE), str(Performative.MOVE))
-                self.agent.add_behaviour(
-                    self.agent.MoveBehaviour(period=INTERVAL_TO_MOVE), t
-                )
+                    logger.warning(f"[{self.agent.name}]: No handshake received. Retrying...")
 
                 self.kill()
                 self.agent.resume_bdi()
@@ -670,27 +606,15 @@ class BDITroop(AbstractAgent, BDIAgent):
                 content = json.loads(msg.body)
                 if self.agent.bdi_enabled:
                     if self.agent.team == TEAM_ALLIED:
-                        x = (
-                                    (
-                                            self.agent.map.allied_base.get_end_x()
-                                            - self.agent.map.allied_base.get_init_x()
-                                    )
-                                    / 2
-                            ) + self.agent.map.allied_base.get_init_x()
-                        y = (
-                                    (
-                                            self.agent.map.allied_base.get_end_y()
-                                            - self.agent.map.allied_base.get_init_y()
-                                    )
-                                    / 2
-                            ) + self.agent.map.allied_base.get_init_y()
-                        z = (
-                                    (
-                                            self.agent.map.allied_base.get_end_z()
-                                            - self.agent.map.allied_base.get_init_z()
-                                    )
-                                    / 2
-                            ) + self.agent.map.allied_base.get_init_z()
+                        x = (((self.agent.map.allied_base.get_end_x()
+                               - self.agent.map.allied_base.get_init_x()) / 2) +
+                             self.agent.map.allied_base.get_init_x())
+                        y = (((self.agent.map.allied_base.get_end_y() -
+                               self.agent.map.allied_base.get_init_y()) / 2) +
+                             self.agent.map.allied_base.get_init_y())
+                        z = (((self.agent.map.allied_base.get_end_z() -
+                              self.agent.map.allied_base.get_init_z()) / 2) +
+                             self.agent.map.allied_base.get_init_z())
                     elif self.agent.team == TEAM_AXIS:
                         x = (
                                     (
@@ -762,45 +686,38 @@ class BDITroop(AbstractAgent, BDIAgent):
             msg = await self.receive(timeout=LONG_RECEIVE_WAIT)
             if msg:
                 content = json.loads(msg.body)
-                decrease_health = int(content[Action.DEC_HEALTH])
-                self.agent.decrease_health(decrease_health)
+                health_to_decrease = int(content[Action.DEC_HEALTH])
+                # self.agent.health_to_decrease(health_to_decrease)
                 logger.info(
                     "Agent {} has been hit by a shot! Loses {} health points ({}).".format(
-                        self.agent.name, decrease_health, self.agent.health
+                        self.agent.name, health_to_decrease, self.agent.health
                     )
                 )
 
-                if self.agent.health <= 0:
-                    logger.success(self.agent.name + ": DEAD!!")
-                    if self.agent.is_objective_carried:
-                        self.agent.bdi.remove_belief(Belief.FLAG_TAKEN)
-                        self.agent.is_objective_carried = False
-                        logger.info(
-                            "Agent {} loses the objective.".format(self.agent.name)
-                        )
-                    await self.agent.die()
-
                 self.agent.perform_injury_action()
 
-    # Behaviour to inform JGomasManager our position, status, and so on
+    # Behaviour to get from pygomas Manager our position, status, and so on
     class DataFromTroopBehaviour(PeriodicBehaviour):
         async def run(self):
             try:
                 if not self.agent.movement:
-                    return
+                    logger.debug(f"[{self.agent.name}]: No movement object")
+                    self.agent.movement = Mobile()
+                if len(self.agent.destinations) > 0:
+                    dest_x, dest_z = self.agent.destinations[0]
+                else:
+                    dest_x, dest_z = self.agent.movement.position.x, self.agent.movement.position.z
                 content = {
                     Belief.NAME: self.agent.name,
-                    Action.X: self.agent.movement.position.x,
-                    Action.Y: self.agent.movement.position.y,
-                    Action.Z: self.agent.movement.position.z,
+                    Action.DEST_X: dest_x,
+                    Action.DEST_Y: 0,
+                    Action.DEST_Z: dest_z,
                     Action.VEL_X: self.agent.movement.velocity.x,
                     Action.VEL_Y: self.agent.movement.velocity.y,
                     Action.VEL_Z: self.agent.movement.velocity.z,
                     Action.HEAD_X: self.agent.movement.heading.x,
                     Action.HEAD_Y: self.agent.movement.heading.y,
                     Action.HEAD_Z: self.agent.movement.heading.z,
-                    Belief.HEALTH: self.agent.health,
-                    Belief.AMMO: self.agent.ammo,
                 }
                 msg = Message(to=self.agent.manager)
                 msg.set_metadata(str(Performative.PERFORMATIVE), str(Performative.DATA))
@@ -813,6 +730,57 @@ class BDITroop(AbstractAgent, BDIAgent):
                 if info is None:
                     return
                 info = json.loads(info.body)
+
+                self.agent.movement.position.x = float(info[Action.X])
+                self.agent.movement.position.y = float(info[Action.Y])
+                self.agent.movement.position.z = float(info[Action.Z])
+                self.agent.bdi.set_belief(
+                    Belief.POSITION,
+                    tuple(
+                        (
+                            self.agent.movement.position.x,
+                            self.agent.movement.position.y,
+                            self.agent.movement.position.z,
+                        )
+                    ),
+                )
+                self.agent.movement.velocity.x = float(info[Action.VEL_X])
+                self.agent.movement.velocity.y = float(info[Action.VEL_Y])
+                self.agent.movement.velocity.z = float(info[Action.VEL_Z])
+                self.agent.bdi.set_belief(
+                    Belief.VELOCITY,
+                    tuple(
+                        (
+                            self.agent.movement.velocity.x,
+                            self.agent.movement.velocity.y,
+                            self.agent.movement.velocity.z,
+                        )
+                    ),
+                )
+
+                self.agent.movement.heading.x = float(info[Action.HEAD_X])
+                self.agent.movement.heading.y = float(info[Action.HEAD_Y])
+                self.agent.movement.heading.z = float(info[Action.HEAD_Z])
+                self.agent.bdi.set_belief(
+                    Belief.HEADING,
+                    tuple(
+                        (
+                            self.agent.movement.heading.x,
+                            self.agent.movement.heading.y,
+                            self.agent.movement.heading.z,
+                        )
+                    ),
+                )
+
+                self.agent.update_destination()
+
+                self.agent.health = int(info[Belief.HEALTH])
+                if self.agent.health <= 0:
+                    await self.pass_away()
+
+                self.agent.bdi.set_belief(Belief.HEALTH, self.agent.health)
+                self.agent.ammo = int(info[Belief.AMMO])
+                self.agent.bdi.set_belief(Belief.AMMO, self.agent.ammo)
 
                 packs = info[Action.PACKS] if info[Action.PACKS] is not None else []
                 for pack in packs:
@@ -872,67 +840,47 @@ class BDITroop(AbstractAgent, BDIAgent):
             except ZeroDivisionError:
                 pass
 
-    # Behaviour to increment inner variables (Power, Stamina and Health Bars)
-    class RestoreBehaviour(PeriodicBehaviour):
-        async def run(self):
-            if self.agent.stamina < MAX_STAMINA:
-                self.agent.stamina = self.agent.stamina + 1
-
-            if self.agent.power < MAX_POWER:
-                self.agent.power = self.agent.power + 1
-
-            if self.agent.eclass == CLASS_MEDIC and self.agent.health > MIN_HEALTH:
-                if self.agent.health < MAX_HEALTH:
-                    self.agent.health = self.agent.health + 1
-
-    def generate_spawn_position(self):
-        if self.team == TEAM_ALLIED:
-            w = self.map.allied_base.end.x - self.map.allied_base.init.x
-            h = self.map.allied_base.end.z - self.map.allied_base.init.z
-            offset_x = self.map.allied_base.init.x
-            offset_z = self.map.allied_base.init.z
-
-        else:
-            w = self.map.axis_base.end.x - self.map.axis_base.init.x
-            h = self.map.axis_base.end.z - self.map.axis_base.init.z
-            offset_x = self.map.axis_base.init.x
-            offset_z = self.map.axis_base.init.z
-
-        x = int((random.random() * w) + offset_x)
-        z = int((random.random() * h) + offset_z)
-
-        logger.info("Spawn position for agent {} is ({}, {})".format(self.name, x, z))
-
-        self.movement.position.x = x
-        self.movement.position.y = 0
-        self.movement.position.z = z
-
-    def move(self, dt):
-        new_position = Vector3D(self.movement.calculate_position(dt))
-        if not self.check_static_position(new_position.x, new_position.z):
-            logger.info(
-                self.name
-                + ": Can't walk to {} with velocity {}. I stay at {}".format(
-                    new_position, self.movement.velocity, self.movement.position
+        async def pass_away(self):
+            logger.success(self.agent.name + ": DEAD!!")
+            if self.agent.is_objective_carried:
+                self.agent.bdi.remove_belief(Belief.FLAG_TAKEN)
+                self.agent.is_objective_carried = False
+                logger.info(
+                    "Agent {} loses the objective.".format(self.agent.name)
                 )
-            )
-            return MV_CANNOT_GET_POSITION
+            await self.agent.die()
+
+    def update_destination(self):
+        # Check if there are any destinations left
+        if len(self.destinations) > 0:
+            # Check if the agent's current position matches the first destination in the queue
+            if (self.movement.position.x == self.destinations[0][0] and
+                    self.movement.position.z == self.destinations[0][1]):
+                logger.info(f"{self.jid.localpart} reached destination {self.destinations[0]}")
+
+                # If it matches, remove the first destination from the queue
+                x, z = self.destinations.popleft()
+
+                # If there are no more destinations left, set the belief that the target has been reached
+                if len(self.destinations) == 0:
+                    self.bdi.set_belief(
+                        Belief.TARGET_REACHED,
+                        tuple(
+                            (
+                                self.movement.destination.x,
+                                self.movement.destination.y,
+                                self.movement.destination.z,
+                            )
+                        ),
+                    )
+                # If there are still destinations left, get the next destination
+                else:
+                    x, z = self.destinations[0]
+                # Update the agent's orientation to face the next destination
+                self.compare_orientation(x, z)
         else:
-            if self.movement.position != new_position:
-                self.movement.position = Vector3D(new_position)
-                self.bdi.set_belief(
-                    Belief.POSITION,
-                    tuple(
-                        (
-                            self.movement.position.x,
-                            self.movement.position.y,
-                            self.movement.position.z,
-                        )
-                    ),
-                )
-            x, z = self.destinations[0]
-            self.compare_orientation(x, z)
-            return MV_OK
+            # logger.info(f"{self.jid.localpart} has no more destinations")
+            pass
 
     def compare_orientation(self, x, z):
         last_velocity = Vector3D(self.movement.velocity)
@@ -964,10 +912,8 @@ class BDITroop(AbstractAgent, BDIAgent):
     def pack_taken(self, pack_type, quantity):
         if pack_type == PACK_MEDICPACK:
             self.bdi.set_belief(Belief.PACK_TAKEN, Service.MEDIC, quantity)
-            self.increase_health(quantity)
         elif pack_type == PACK_AMMOPACK:
             self.bdi.set_belief(Belief.PACK_TAKEN, Service.AMMO, quantity)
-            self.increase_ammo(quantity)
         elif pack_type == PACK_OBJPACK and self.team == TEAM_ALLIED:
             self.is_objective_carried = True
             self.bdi.set_belief(Belief.FLAG_TAKEN)
@@ -981,28 +927,6 @@ class BDITroop(AbstractAgent, BDIAgent):
         """
         return self.health
 
-    def increase_health(self, quantity):
-        """
-        Increments the current health of the agent.
-
-        :param quantity: positive quantity to increment
-        """
-        self.health += quantity
-        if self.health > MAX_HEALTH:
-            self.health = MAX_HEALTH
-        self.bdi.set_belief(Belief.HEALTH, self.health)
-
-    def decrease_health(self, quantity):
-        """
-        Decrements the current health of the agent.
-
-        :param quantity: negative quantity to decrement
-        """
-        self.health -= quantity
-        if self.health < MIN_HEALTH:
-            self.health = MIN_HEALTH
-        self.bdi.set_belief(Belief.HEALTH, self.health)
-
     def get_ammo(self):
         """
         Get the current ammunition of the agent.
@@ -1010,28 +934,6 @@ class BDITroop(AbstractAgent, BDIAgent):
         :returns: current value for ammo
         """
         return self.ammo
-
-    def increase_ammo(self, quantity):
-        """
-        Increments the current ammunition of the agent.
-
-        :param quantity: positive quantity to increment
-        """
-        self.ammo += quantity
-        if self.ammo > MAX_AMMO:
-            self.ammo = MAX_AMMO
-        self.bdi.set_belief(Belief.AMMO, self.ammo)
-
-    def decrease_ammo(self, quantity):
-        """
-        Decrements the current ammunition of the agent.
-
-        :param quantity: negative quantity to decrement
-        """
-        self.ammo -= quantity
-        if self.ammo < MIN_AMMO:
-            self.ammo = MIN_AMMO
-        self.bdi.set_belief(Belief.AMMO, self.ammo)
 
     def get_stamina(self):
         """
@@ -1082,26 +984,6 @@ class BDITroop(AbstractAgent, BDIAgent):
         if service_list.lower() not in self.service_types:
             self.service_types.append(service_list.lower())
 
-    def check_static_position(self, x=None, z=None):
-        """
-        Checks a position on the static map.
-
-        This method checks if a position on the static map is valid to walk on, and returns the result.
-
-        :param x:
-        :param z:
-        :returns True (agent can walk on) | False (agent cannot walk on)
-        :rtype bool
-        """
-        if x is None:
-            x = self.movement.position.x
-        if z is None:
-            z = self.movement.position.z
-
-        x = int(x)
-        z = int(z)
-        return self.map.can_walk(x, z)
-
     def perform_aim_action(self):
         """
         Action to do when agent has an enemy at sight.
@@ -1141,8 +1023,10 @@ class BDITroop(AbstractAgent, BDIAgent):
     def generate_escape_position(self):
         """
         Calculates a new destiny position to escape.
-        This method is called before the agent creates a task for escaping. It generates a valid random point in a radius of 50 units.
-        Once position is calculated, agent updates its destiny to the new position, and automatically calculates the new direction.
+        This method is called before the agent creates a task for escaping.
+        It generates a valid random point in a radius of 50 units.
+        Once position is calculated, agent updates its destiny to the new position,
+        and automatically calculates the new direction.
 
         It's very useful to overload this method. </em>
         """
@@ -1151,42 +1035,11 @@ class BDITroop(AbstractAgent, BDIAgent):
             self.movement.calculate_new_destination(
                 radius_x=ESCAPE_RADIUS, radius_y=ESCAPE_RADIUS
             )
-            if self.check_static_position(
+            if self.map.can_walk(
                     self.movement.destination.x, self.movement.destination.z
             ):
                 self.movement.calculate_new_orientation(self.movement.destination)
                 return
-
-    def escape_barrier(self):
-        """
-        Escape a barrier. Sets the agent's velocity vector
-        highest component to zero, forcing it to move only
-        along the other component.
-        """
-        """
-        if abs(self.movement.velocity.x) == abs(self.movement.velocity.z):
-            self.movement.velocity.x += random.gauss(0, 0.1)
-            self.movement.velocity.z += random.gauss(0, 0.1)
-        elif abs(self.movement.velocity.x) > abs(self.movement.velocity.z):
-            self.movement.velocity.x = 0.0
-            self.movement.velocity.z = float(1 * sign(self.movement.velocity.z))
-        elif abs(self.movement.velocity.x) < abs(self.movement.velocity.z):
-            self.movement.velocity.z = 0.0
-            self.movement.velocity.x = float(1 * sign(self.movement.velocity.x))
-        """
-        gx, gz = random.gauss(0, 0.1), random.gauss(0, 0.1)
-        self.movement.velocity.x += gx
-        self.movement.velocity.z += gz
-        if random.randint(0, 1) == 0:
-            self.movement.velocity.x *= -1
-        else:
-            self.movement.velocity.z *= -1
-        logger.trace(
-            self.name
-            + ": New velocity is <{},{}>".format(
-                self.movement.velocity.x, self.movement.velocity.z
-            )
-        )
 
     def perform_escape_action(self):
         """

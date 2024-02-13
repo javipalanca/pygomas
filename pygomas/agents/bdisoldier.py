@@ -1,5 +1,6 @@
 from pygomas.ontology import Service
-from .bditroop import BDITroop, CLASS_SOLDIER
+from .bditroop import BDITroop
+from ..config import CLASS_SOLDIER
 
 
 class BDISoldier(BDITroop):

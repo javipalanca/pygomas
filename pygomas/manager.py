@@ -19,7 +19,6 @@ from spade.message import Message
 from spade.template import Template
 
 from pygomas.agents.agent import AbstractAgent, LONG_RECEIVE_WAIT
-from pygomas.agents.bditroop import CLASS_SOLDIER
 from pygomas.agents.service import ServiceAgent
 from pygomas.packs.objpack import ObjectivePack
 from pygomas.packs.pack import (
@@ -40,8 +39,11 @@ from .config import (
     TEAM_ALLIED,
     TEAM_AXIS,
     MISSING_SHOT_PROBABILITY,
+    CLASS_SOLDIER,
+    INTERVAL_TO_MOVE,
 )
 from .map import TerrainMap
+from .agents.microagent import MicroAgent
 from .ontology import Action, Belief, Performative, Service as ServiceOnto
 from .server import Server, TCP, Msg
 from .stats import GameStatistic
@@ -59,24 +61,6 @@ ARG_MAP_PATH: int = 4
 WIDTH: int = 3
 
 
-class MicroAgent:
-    def __init__(self):
-        self.jid = ""
-        self.team = TEAM_NONE
-        self.locate = Mobile()
-        self.is_carrying_objective = False
-        self.is_shooting = False
-        self.health = 0
-        self.ammo = 0
-        self.type = 0
-        self.is_updated = False
-
-    def __str__(self):
-        return "<{} Team({}) Health({}) Ammo({}) Obj({})>".format(
-            self.jid, self.team, self.health, self.ammo, self.is_carrying_objective
-        )
-
-
 class DinObject:
     def __str__(self):
         return "DO({},{})".format(PACK_NAME[self.type], self.position)
@@ -92,17 +76,17 @@ class DinObject:
 
 class Manager(AbstractAgent, Agent):
     def __init__(
-        self,
-        name="cmanager@localhost",
-        passwd="secret",
-        players=10,
-        fps=33,
-        match_time=380,
-        map_name="map_01",
-        map_path=None,
-        service_jid="cservice@localhost",
-        service_passwd="secret",
-        port=8001,
+            self,
+            name="cmanager@localhost",
+            passwd="secret",
+            players=10,
+            fps=33,
+            match_time=380,
+            map_name="map_01",
+            map_path=None,
+            service_jid="cservice@localhost",
+            service_passwd="secret",
+            port=8001,
     ):
         AbstractAgent.__init__(self, name, service_jid=service_jid)
         Agent.__init__(self, name, passwd)
@@ -135,53 +119,82 @@ class Manager(AbstractAgent, Agent):
     async def setup(self):
         class InitBehaviour(OneShotBehaviour):
             async def run(self):
-                logger.success(
-                    "Manager (Expected Agents): {}".format(self.agent.max_total_agents)
-                )
-
-                # for i in range(1, self.agent.max_total_agents + 1):
-                while self.agent.number_of_agents < self.agent.max_total_agents:
-                    msg = await self.receive(timeout=LONG_RECEIVE_WAIT)
-                    if msg:
-                        content = json.loads(msg.body)
-
-                        name = content[Belief.NAME]
-                        type_ = content[Action.TYPE]
-                        team = content[Belief.TEAM]
-
-                        self.agent.agents[name] = MicroAgent()
-                        self.agent.agents[name].jid = name
-                        self.agent.agents[name].type = int(type_)
-                        self.agent.agents[name].team = int(team)
-                        self.agent.agents[name].health = 100
-
-                        logger.success("Manager: [" + name + "] is Ready!")
-                        self.agent.number_of_agents += 1
-                    else:
-                        logger.warning("Manager: Still waiting for agents...")
-                logger.success(
-                    "Manager (Accepted Agents): " + str(self.agent.number_of_agents)
-                )
-                for agent in self.agent.agents.values():
-                    msg = Message()
-                    msg.set_metadata(
-                        str(Performative.PERFORMATIVE), str(Performative.INIT)
-                    )
-                    msg.to = agent.jid
-                    msg.body = json.dumps({Action.MAP: self.agent.map_name})
-                    await self.send(msg)
+                try:
+                #if True:
                     logger.success(
-                        "Manager: Sending notification to fight to: " + agent.jid
+                        "Manager (Expected Agents): {}".format(self.agent.max_total_agents)
                     )
 
-                await self.agent.inform_objectives(self)
-                self.agent.match_init = time.time()
+                    while self.agent.number_of_agents < self.agent.max_total_agents:
+                        msg = await self.receive(timeout=LONG_RECEIVE_WAIT)
+                        if msg:
+                                content = json.loads(msg.body)
 
-                # Behaviour to check if all allied troops are alive
-                self.agent.launch_check_allied_health()
+                                name = content[Belief.NAME]
+                                if name not in self.agent.agents:
+                                    type_ = content[Action.TYPE]
+                                    team = content[Belief.TEAM]
 
-                # Behaviour to refresh all render engines connected
-                self.agent.launch_render_engine_inform_behaviour()
+                                    self.agent.agents[name] = MicroAgent(self.agent.map)
+                                    self.agent.agents[name].jid = name
+                                    self.agent.agents[name].type = int(type_)
+                                    self.agent.agents[name].team = int(team)
+                                    self.agent.agents[name].generate_spawn_position()
+
+                                    logger.success("Manager: [" + name + "] is Ready!")
+                                    self.agent.number_of_agents += 1
+                        else:
+                            logger.warning("Manager: Still waiting for agents...")
+                    logger.success(
+                        "Manager (Accepted Agents): " + str(self.agent.number_of_agents)
+                    )
+                    for agent in self.agent.agents.values():
+                        msg = Message()
+                        msg.set_metadata(
+                            str(Performative.PERFORMATIVE), str(Performative.INIT)
+                        )
+                        msg.to = agent.jid
+                        msg.body = json.dumps({
+                            Action.MAP: self.agent.map_name,
+                            Belief.HEALTH: agent.health,
+                            Belief.AMMO: agent.ammo,
+                            Belief.STAMINA: agent.stamina,
+                            Belief.POWER: agent.power,
+                        })
+                        await self.send(msg)
+                        logger.success(
+                            f"Manager: Sending notification to fight to {agent.jid}: {msg.body}"
+                        )
+
+                    # Behaviour to check if all allied troops are alive
+                    self.agent.launch_check_allied_health()
+
+                    # Behaviour to refresh all render engines connected
+                    self.agent.launch_render_engine_inform_behaviour()
+
+                    # Behaviour to listen to data (position, health?, and so on) from troop agents
+                    self.agent.launch_data_from_troop_listener_behaviour()
+
+                    # Behaviour to handle Shot messages
+                    self.agent.launch_shoot_responder_behaviour()
+
+                    # Behaviour to handle Pack Management: Creation and Destruction
+                    self.agent.launch_pack_management_responder_behaviour()
+
+                    # Behaviour to inform all agents that game has finished by time
+                    self.agent.launch_game_timeout_inform_behaviour()
+
+                    # Behaviour to increment inner variables (Power, Stamina and Health Bars)
+                    self.agent.add_behaviour(self.agent.RestoreBehaviour(period=1), Template(sender="nobody"))
+                    self.agent.add_behaviour(self.agent.MoveBehaviour(period=INTERVAL_TO_MOVE), Template(sender="nobody"))
+
+                    await self.agent.inform_objectives(self)
+                    self.agent.match_init = time.time()
+
+                except Exception as e:
+                    logger.error("Manager: Error in agent creation: " + str(e))
+                    import sys
+                    sys.exit()
 
         logger.success(
             "pygomas {} (c) VRAIN 2005-{} (VRAIN/UPV)".format(
@@ -190,6 +203,10 @@ class Manager(AbstractAgent, Agent):
         )
         logger.success("Powered by SPADE {}".format(spade.__version__))
 
+        await self.render_server.start()
+        self.map.load_map(self.map_name, self.config)
+        await self.create_objectives()
+
         template = Template()
         template.set_metadata(str(Performative.PERFORMATIVE), str(Performative.INIT))
         self.add_behaviour(InitBehaviour(), template)
@@ -197,41 +214,26 @@ class Manager(AbstractAgent, Agent):
         await self.service_agent.start(auto_register=True)
         self.register_service(ServiceOnto.MANAGEMENT)
 
-        await self.render_server.start()
-        self.map.load_map(self.map_name, self.config)
+    # Behaviour to increment inner variables (Power, Stamina and Health Bars)
+    class RestoreBehaviour(PeriodicBehaviour):
+        async def run(self):
+            for agent in self.agent.agents.values():
+                agent.restore()
 
-        # Behaviour to listen to data (position, health?, and so on) from troop agents
-        self.launch_data_from_troop_listener_behaviour()
-
-        # Behaviour to handle Shot messages
-        self.launch_shoot_responder_behaviour()
-
-        # Behaviour to handle Pack Management: Creation and Destruction
-        self.launch_pack_management_responder_behaviour()
-
-        # Behaviour to inform all agents that game has finished by time
-        self.launch_game_timeout_inform_behaviour()
-
-        await self.create_objectives()  # We need to do this when online
-
-        '''class RecvAllBehaviour(CyclicBehaviour):
-            async def run(self):
-                msg = await self.receive(timeout=LONG_RECEIVE_WAIT)
-                if msg:
-                    logger.info("Manager: Received message: {}".format(msg))
-
-        self.add_behaviour(RecvAllBehaviour())
-        '''
+    class MoveBehaviour(PeriodicBehaviour):
+        async def run(self):
+            for agent in self.agent.agents.values():
+                agent.move(INTERVAL_TO_MOVE)
 
     # Behaviour to refresh all render engines connected
     def launch_render_engine_inform_behaviour(self):
         class InformRenderEngineBehaviour(PeriodicBehaviour):
             async def run(self):
                 if (
-                    self.agent.render_server
-                    and len(self.agent.render_server.get_connections()) != 0
-                    and all([[a.is_updated for a in self.agent.agents.values()]])
-                    and len(self.agent.agents) == self.agent.number_of_agents
+                        self.agent.render_server
+                        and len(self.agent.render_server.get_connections()) != 0
+                        and all([[a.is_updated for a in self.agent.agents.values()]])
+                        and len(self.agent.agents) == self.agent.number_of_agents
                 ):
                     msg = {
                         Msg.AGENTS: [
@@ -281,7 +283,7 @@ class Manager(AbstractAgent, Agent):
                                 task, TCP.AGL, msg
                             )
 
-        self.add_behaviour(InformRenderEngineBehaviour(self.fps))
+        self.add_behaviour(InformRenderEngineBehaviour(self.fps), Template(sender="nobody"))
         logger.debug("InformRenderEngineBehaviour started.")
 
     # Behaviour to listen to data (position, health?, and so on) from troop agents
@@ -296,57 +298,22 @@ class Manager(AbstractAgent, Agent):
                         content = json.loads(msg.body)
                         id_agent = content[Belief.NAME]
 
-                        self.agent.agents[id_agent].locate.position.x = int(
-                            content[Action.X]
-                        )
-                        self.agent.agents[id_agent].locate.position.y = int(
-                            content[Action.Y]
-                        )
-                        self.agent.agents[id_agent].locate.position.z = int(
-                            content[Action.Z]
-                        )
-                        self.agent.agents[id_agent].is_updated = True
+                        if id_agent in self.agent.agents:
+                            self.agent.agents[id_agent].update(content)
 
-                        self.agent.agents[id_agent].locate.velocity.x = float(
-                            content[Action.VEL_X]
-                        )
-                        self.agent.agents[id_agent].locate.velocity.y = float(
-                            content[Action.VEL_Y]
-                        )
-                        self.agent.agents[id_agent].locate.velocity.z = float(
-                            content[Action.VEL_Z]
-                        )
-
-                        self.agent.agents[id_agent].locate.heading.x = float(
-                            content[Action.HEAD_X]
-                        )
-                        self.agent.agents[id_agent].locate.heading.y = float(
-                            content[Action.HEAD_Y]
-                        )
-                        self.agent.agents[id_agent].locate.heading.z = float(
-                            content[Action.HEAD_Z]
-                        )
-
-                        self.agent.agents[id_agent].health = int(content[Belief.HEALTH])
-                        self.agent.agents[id_agent].ammo = int(content[Belief.AMMO])
-
-                        packs = await self.agent.check_objects_at_step(
-                            id_agent, behaviour=self
-                        )
-                        fov_objects = self.agent.look(id_agent)
-                        content = {Action.PACKS: packs, Action.FOV: fov_objects}
-                        msg = Message(to=id_agent)
-                        msg.set_metadata(
-                            str(Performative.PERFORMATIVE), str(Performative.DATA)
-                        )
-                        msg.body = json.dumps(content)
-
-                        await self.send(msg)
-                        if self.agent.check_game_finished(id_agent):
-                            await self.agent.inform_game_finished("ALLIED", self)
-                            logger.success(
-                                "\n\nManager:  GAME FINISHED!! Winner Team: ALLIED! (Target Returned)\n"
+                            packs = await self.agent.check_objects_at_step(
+                                id_agent, behaviour=self
                             )
+                            fov_objects = self.agent.look(id_agent)
+
+                            msg = self.agent.agents[id_agent].get_update_msg(packs, fov_objects)
+                            await self.send(msg)
+
+                            if self.agent.check_game_finished(id_agent):
+                                await self.agent.inform_game_finished("ALLIED", self)
+                                logger.success(
+                                    "\n\nManager:  GAME FINISHED!! Winner Team: ALLIED! (Target Returned)\n"
+                                )
                 except Exception as e:
                     logger.warning("Exception at DataFromTroopBehaviour: {}".format(e))
                     logger.warning(traceback.format_exc())
@@ -364,7 +331,7 @@ class Manager(AbstractAgent, Agent):
                 if msg:
                     content = json.loads(msg.body)
                     shooter_id = content[Belief.NAME]
-                    aim = int(content[Action.AIM])
+                    _ = int(content[Action.AIM])
                     shots = int(content[Action.SHOTS])
                     victim_pos = Vector3D(
                         x=content[Action.X], y=content[Action.Y], z=content[Action.Z]
@@ -499,7 +466,7 @@ class Manager(AbstractAgent, Agent):
                 await self.agent.inform_game_finished("AXIS!", self)
 
         timeout = datetime.datetime.now() + datetime.timedelta(seconds=self.match_time)
-        self.add_behaviour(GameTimeoutInformBehaviour(start_at=timeout))
+        self.add_behaviour(GameTimeoutInformBehaviour(start_at=timeout), Template(sender="nobody"))
 
     # Behaviour to inform all agents that game has finished because all allied troops died
     def launch_check_allied_health(self):
@@ -516,7 +483,7 @@ class Manager(AbstractAgent, Agent):
                     logger.success("\n\nManager:  GAME FINISHED!! Winner Team: AXIS!\n")
                     await self.agent.inform_game_finished("AXIS!", self)
 
-        self.add_behaviour(CheckAlliedHealthBehaviour(20 * self.fps))
+        self.add_behaviour(CheckAlliedHealthBehaviour(20 * self.fps), Template(sender="nobody"))
 
     async def check_objects_at_step(self, id_agent, behaviour):
         if len(self.din_objects) <= 0:
@@ -538,22 +505,22 @@ class Manager(AbstractAgent, Agent):
                 continue
             din_object = self.din_objects[key]
             if (
-                din_object.type == PACK_MEDICPACK
-                and self.agents[id_agent].health >= 100
+                    din_object.type == PACK_MEDICPACK
+                    and self.agents[id_agent].health >= 100
             ):
                 continue
             if din_object.type == PACK_AMMOPACK and self.agents[id_agent].ammo >= 100:
                 continue
             if (
-                din_object.type == PACK_OBJPACK
-                and din_object.is_taken
-                and din_object.owner != 0
+                    din_object.type == PACK_OBJPACK
+                    and din_object.is_taken
+                    and din_object.owner != 0
             ):
                 continue
 
             if (
-                xmin <= din_object.position.x <= xmax
-                and zmin <= din_object.position.z <= zmax
+                    xmin <= din_object.position.x <= xmax
+                    and zmin <= din_object.position.z <= zmax
             ):
                 # Agent has stepped on pack
                 id_ = din_object.jid
@@ -659,12 +626,6 @@ class Manager(AbstractAgent, Agent):
 
     def get_objects_in_field_of_view(self, id_agent):
         objects_in_sight = list()
-        agent = None
-
-        # for k, a in self.agents.items():
-        #    if a.jid == id_agent:
-        #        agent = a
-        #        break
         agent = self.agents[id_agent]
 
         if agent is None or agent.locate.heading.length() == 0:
@@ -677,7 +638,7 @@ class Manager(AbstractAgent, Agent):
             if a.jid == id_agent:
                 continue
             if (
-                a.health <= MIN_HEALTH
+                    a.health <= MIN_HEALTH
             ):  # WARNING, we may be interested in seeing dead agents
                 continue
 
@@ -789,7 +750,7 @@ class Manager(AbstractAgent, Agent):
         return victim
 
     def _check_agents_in_row(
-        self, shooter_agent_id, shooter_agent, victim, min_distance
+            self, shooter_agent_id, shooter_agent, victim, min_distance
     ):
         for agent in self.agents.values():
             if agent.jid == shooter_agent_id:
@@ -867,14 +828,14 @@ class Manager(AbstractAgent, Agent):
                     point.z += step.z
 
                 if not self.map.can_walk(
-                    int(math.floor(point.x)), int(math.floor(point.z))
+                        int(math.floor(point.x)), int(math.floor(point.z))
                 ):
                     return error.length()
 
                 if point.x < 0 or point.y < 0 or point.z < 0:
                     break
                 if point.x >= (self.map.get_size_x()) or point.z >= (
-                    self.map.get_size_z()
+                        self.map.get_size_z()
                 ):
                     break
                 error.add(step)
@@ -896,12 +857,12 @@ class Manager(AbstractAgent, Agent):
             return False
 
         if (
-            self.map.allied_base.init.x
-            < self.agents[id_agent].locate.position.x
-            < self.map.allied_base.end.x
-            and self.map.allied_base.init.z
-            < self.agents[id_agent].locate.position.z
-            < self.map.allied_base.end.z
+                self.map.allied_base.init.x
+                < self.agents[id_agent].locate.position.x
+                < self.map.allied_base.end.x
+                and self.map.allied_base.init.z
+                < self.agents[id_agent].locate.position.z
+                < self.map.allied_base.end.z
         ):
             return True
         return False
@@ -941,11 +902,8 @@ class Manager(AbstractAgent, Agent):
             msg.to = agent.jid
             await behaviour.send(msg)
         for st in self.render_server.get_connections():
-            try:
-                # st.send_msg_to_render_engine(TCP_COM, "FINISH " + " GAME FINISHED!! Winner Team: " + str(winner_team))
-                st.send_msg_to_render_engine(TCP.COM, Msg.QUIT)
-            except:
-                pass
+            # st.send_msg_to_render_engine(TCP_COM, "FINISH " + " GAME FINISHED!! Winner Team: " + str(winner_team))
+            st.send_msg_to_render_engine(TCP.COM, Msg.QUIT)
 
         self.print_statistics(winner_team)
 

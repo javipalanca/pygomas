@@ -25,9 +25,9 @@ class Mobile(object):
 
     def calculate_position(self, dt):
         position = Vector3D()
-        position.x = self.position.x + (self.velocity.x * dt)
-        position.y = self.position.y + (self.velocity.y * dt)  # + (0.5f * t2)
-        position.z = self.position.z + (self.velocity.z * dt)
+        position.x = int(self.position.x + (self.velocity.x * dt))
+        position.y = int(self.position.y + (self.velocity.y * dt))  # + (0.5f * t2)
+        position.z = int(self.position.z + (self.velocity.z * dt))
         return position
 
     def calculate_new_orientation(self, destination):

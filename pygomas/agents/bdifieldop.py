@@ -3,10 +3,10 @@ import random
 from loguru import logger
 from spade.behaviour import OneShotBehaviour
 
-from pygomas.config import POWER_UNIT
+from pygomas.config import POWER_UNIT, CLASS_FIELDOPS
 from pygomas.ontology import Service
 from pygomas.packs.ammopack import AmmoPack
-from .bditroop import BDITroop, CLASS_FIELDOPS
+from .bditroop import BDITroop
 
 
 class BDIFieldOp(BDITroop):
