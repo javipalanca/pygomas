@@ -2,6 +2,14 @@
 History
 =======
 
+0.5.0 (2024-02-13)
+------------------
+
+* Upgraded to SPADE 3.3.2
+* Upgraded to spade-bdi 0.3.0
+* File refactoring
+* Constants moved to Enums
+
 0.4.7 (2022-05-09)
 ------------------
 
