@@ -8,6 +8,11 @@ recursive-include tests *
 recursive-include pygomas/maps *
 recursive-include pygomas/ASL *
 recursive-include pygomas/assets *
+recursive-include pygomas/agents *
+recursive-include pygomas/algorithms *
+recursive-include pygomas/packs *
+recursive-include pygomas/render *
+recursive-include pygomas/utils *
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
 

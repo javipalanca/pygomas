@@ -2,6 +2,12 @@
 History
 =======
 
+0.5.1 (2024-03-20)
+------------------
+
+* Upgraded to spoade_bdi 0.3.1
+* Fixed missing files in last release
+
 0.5.0 (2024-02-13)
 ------------------
 
