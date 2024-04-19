@@ -55,19 +55,22 @@ class Render(object):
             address="localhost",
             port=8001,
             maps=None,
+            fps=30,
             text=False,
             replay=False,
             dump=False,
             log="match.log",
-            wait_fps=0.033,
+            wait_fps=round(1/fps, 3),
     ):
         self.address = address
         self.port = port
+        self.fps = fps
         self.maps_path = maps
         self.text = text
         self.s = None
         self.screen = None
         self.font = None
+        self.wait_fps = round(1/fps, 3)
 
         self.objective_x = -1
         self.objective_y = -1
@@ -918,11 +921,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--maps", default=None, help="The path to your custom maps directory"
     )
+    parser.add_argument(
+        "--fps", default=30, help="Set desired FPS rate"
+    )
     parser.add_argument("--text", default=False, help="Use text render")
 
     parser.add_argument("--log", default="match.log", help="File to save the game")
 
     args = parser.parse_args()
-    render = Render(args.ip, args.port, args.maps, args.text)
+    render = Render(args.ip, args.port, args.maps, args.fps, args.text)
     render.main()
     sys.exit(0)
