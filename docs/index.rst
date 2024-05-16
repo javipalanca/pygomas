@@ -1,4 +1,4 @@
-Welcome to pygomas's documentation!
+Welcome to pyGOMAS's documentation!
 ======================================
 
 .. toctree::

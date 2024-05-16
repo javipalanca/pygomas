@@ -30,9 +30,9 @@ Features
 * Based on the SPADE Multi-Agent System platform (https://spade-mas.readthedocs.io.)
 * Support for different game viewers (pygame, Unity, ncurses...)
 
-=====
-Usage
-=====
+===========
+Quick Start
+===========
 
 To run a pygomas game manager::
 
